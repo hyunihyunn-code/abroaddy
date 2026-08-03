@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>어브로디 — 여행 가계부</title>
+<meta name="description" content="여행하는 동안 하루에 쓸 수 있는 돈을 정확하게 관리하는 여행 가계부.">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
+<meta name="theme-color" content="#eef3fd">
+<meta name="color-scheme" content="light">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="어브로디">
+<style>
+  :root{
+    --grad-accent:linear-gradient(135deg,#2f7de0 0%,#5a6ee6 50%,#8a5fe0 100%);
+    --ink:#14224a; --ink-sec:#3a4668; --muted:#6a76a0;
+    --glass:rgba(255,255,255,.60); --glass-brd:rgba(255,255,255,.6); --glass-hi:rgba(255,255,255,.9);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    color:var(--ink); background:linear-gradient(180deg,#eef3fd 0%,#e8ecfb 42%,#f3eefb 100%) fixed;
+    min-height:100dvh; overflow-x:hidden; -webkit-font-smoothing:antialiased;
+    display:flex; align-items:center; justify-content:center;
+    padding:calc(28px + env(safe-area-inset-top)) 22px calc(40px + env(safe-area-inset-bottom));
+    position:relative;
+  }
+  body::before,body::after{content:"";position:fixed;z-index:-2;pointer-events:none}
+  body::before{
+    inset:-24% -14% auto -14%; height:82vh;
+    background:
+      radial-gradient(48% 42% at 16% 10%, rgba(47,125,224,.55), transparent 66%),
+      radial-gradient(44% 40% at 84% 4%,  rgba(138,95,224,.46), transparent 68%),
+      radial-gradient(46% 40% at 60% 44%, rgba(90,150,240,.50), transparent 70%),
+      radial-gradient(34% 34% at 40% 30%, rgba(64,206,224,.30), transparent 72%);
+    filter:blur(52px); animation:drift-a 26s ease-in-out infinite alternate;
+  }
+  body::after{
+    inset:auto -14% -18% -14%; height:60vh;
+    background:
+      radial-gradient(46% 46% at 22% 84%, rgba(47,125,224,.40), transparent 68%),
+      radial-gradient(40% 44% at 80% 92%, rgba(138,95,224,.34), transparent 70%),
+      radial-gradient(38% 40% at 54% 96%, rgba(170,206,251,.60), transparent 72%);
+    filter:blur(58px); animation:drift-b 32s ease-in-out infinite alternate;
+  }
+  @keyframes drift-a{from{transform:translate3d(-2%,-1%,0) scale(1)}to{transform:translate3d(3%,2%,0) scale(1.08)}}
+  @keyframes drift-b{from{transform:translate3d(2%,1%,0) scale(1.04)}to{transform:translate3d(-3%,-2%,0) scale(1)}}
+
+  .wrap{width:100%;max-width:440px}
+  .brand{display:flex;align-items:center;gap:13px;margin-bottom:26px}
+  .brand img{width:56px;height:56px;border-radius:16px;box-shadow:0 12px 26px -12px rgba(70,90,200,.55)}
+  .brand .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .brand .name{font-size:27px;font-weight:800;letter-spacing:-.03em;margin-top:2px;
+    background:linear-gradient(120deg,#1b2f66 0%,#3f5bd0 60%,#7a4fd4 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  .lede{font-size:16px;line-height:1.6;color:var(--ink-sec);margin:0 0 24px;letter-spacing:-.01em}
+  .lede b{color:var(--ink);font-weight:700}
+
+  .cards{display:flex;flex-direction:column;gap:12px}
+  .entry{
+    display:flex;align-items:center;gap:15px;text-decoration:none;color:inherit;
+    padding:18px 18px;border-radius:20px;
+    background:var(--glass);border:1px solid var(--glass-brd);
+    backdrop-filter:blur(18px) saturate(1.25);-webkit-backdrop-filter:blur(18px) saturate(1.25);
+    box-shadow:0 22px 50px -26px rgba(34,54,120,.5), inset 0 1px 0 var(--glass-hi);
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .entry:hover,.entry:focus-visible{transform:translateY(-3px);outline:none;
+    border-color:rgba(120,150,240,.7);
+    box-shadow:0 30px 60px -26px rgba(34,54,120,.55), inset 0 1px 0 var(--glass-hi)}
+  .entry .ic{width:50px;height:50px;flex:none;border-radius:15px;display:grid;place-items:center;
+    font-size:23px;color:#fff;background:var(--grad-accent);box-shadow:0 10px 20px -8px rgba(70,90,200,.55)}
+  .entry .ic.b{background:linear-gradient(135deg,#00b4a6 0%,#2f7de0 100%)}
+  .entry .tx{flex:1;min-width:0}
+  .entry .tx b{display:block;font-size:16.5px;font-weight:700;letter-spacing:-.02em}
+  .entry .tx span{display:block;font-size:13px;color:var(--muted);line-height:1.5;margin-top:3px}
+  .entry .cv{flex:none;color:#9aa4c8;font-size:20px}
+
+  .hint{display:flex;gap:10px;align-items:flex-start;margin-top:22px;
+    padding:13px 15px;border-radius:14px;background:rgba(255,255,255,.5);
+    border:1px solid rgba(120,150,240,.28);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .hint .e{font-size:16px;line-height:1.3;flex:none}
+  .hint p{margin:0;font-size:12.5px;color:var(--ink-sec);line-height:1.6}
+  .hint b{font-weight:700;color:var(--ink)}
+  .foot{margin-top:22px;text-align:center;font-size:11.5px;color:var(--muted);letter-spacing:.01em}
+
+  @media(prefers-reduced-motion:reduce){body::before,body::after{animation:none}.entry{transition:none}}
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="brand">
+      <img src="icons/icon.svg" alt="어브로디 아이콘" width="56" height="56">
+      <div>
+        <div class="eyebrow">여행 가계부</div>
+        <div class="name">어브로디</div>
+      </div>
+    </div>
+
+    <p class="lede">여행하는 동안 <b>하루에 쓸 수 있는 돈</b>이 정확해집니다.<br>목적지를 검색해 프로젝트를 만들고, 스캔·직접 입력·1/N 정산·통화 전환까지 그대로 눌러보세요.</p>
+
+    <nav class="cards" aria-label="시작 화면 선택">
+      <a class="entry" href="onboarding.html">
+        <span class="ic b" aria-hidden="true">✈</span>
+        <span class="tx"><b>처음 시작하기</b><span>프로젝트도 지출도 없는 빈 화면에서 첫 실행을 체험합니다.</span></span>
+        <span class="cv" aria-hidden="true">›</span>
+      </a>
+      <a class="entry" href="features.html">
+        <span class="ic" aria-hidden="true">◎</span>
+        <span class="tx"><b>채워진 앱 둘러보기</b><span>가상 데이터가 담긴 상태로 여덟 가지 핵심 기능을 눌러봅니다.</span></span>
+        <span class="cv" aria-hidden="true">›</span>
+      </a>
+    </nav>
+
+    <div class="hint">
+      <span class="e" aria-hidden="true">📲</span>
+      <p>Safari에서 <b>공유 → 홈 화면에 추가</b>(iPhone) 또는 <b>공유 → Dock에 추가</b>(Mac)를 누르면 앱처럼 실행됩니다.</p>
+    </div>
+
+    <p class="foot">어브로디 · 핵심 기능 목업 v9</p>
+  </main>
+
+  <script>
+    if('serviceWorker' in navigator){
+      addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
+    }
+  </script>
+</body>
+</html>
