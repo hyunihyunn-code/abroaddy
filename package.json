@@ -1,0 +1,6 @@
+{
+  "name": "abroaddy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "어브로디 — 해외 지출 가계부 (정적 앱 + Gemini 스캔 프록시)"
+}

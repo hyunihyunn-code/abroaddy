@@ -980,7 +980,7 @@ function vScan(){
       '<div class="small" style="text-align:center;margin-top:10px">올린 사진을 보면서 적을 수 있어요</div>';
   }
   return '<div class="hd"><h2>'+S.scanRows.length+'건을 찾았어요</h2><span class="sub">저장 전 수정 가능</span></div>'+
-    '<div class="tip" style="margin-bottom:11px"><span class="e">✨</span><p>지금은 예시 인식 결과예요 · 실제 서비스에서는 올린 사진을 AI가 읽어 채워줍니다.</p></div>'+
+    (SCAN_ENDPOINT?'':'<div class="tip" style="margin-bottom:11px"><span class="e">✨</span><p>지금은 예시 인식 결과예요 · 실제 서비스에서는 올린 사진을 AI가 읽어 채워줍니다.</p></div>')+
     S.scanRows.map(function(r,i){
       var c=catOf(r.cat);
       return '<div class="result"><span class="ic">'+c.i+'</span><span class="mid">'+
@@ -996,21 +996,55 @@ function vScan(){
 function clearScanImg(){try{if(S.scanImg)URL.revokeObjectURL(S.scanImg);}catch(_){}S.scanImg=null;S.scanFile=null;}
 
 /* 업로드한 사진을 인식한다.
-   ┌─ 실제 서비스 연동 지점 ───────────────────────────────────────────────
-   │ 여기서 S.scanFile(업로드 이미지)을 Gemini / Claude Vision API로 보내
-   │ 날짜·사용처·금액·통화·카테고리를 인식한 뒤 S.scanRows 배열로 채운다. 예)
-   │
-   │   var body=new FormData(); body.append("image", S.scanFile);
-   │   fetch("/api/scan",{method:"POST",body:body})
-   │     .then(function(r){return r.json();})
-   │     .then(function(rows){ S.scanRows=rows; S.scan="done"; render(); })
-   │     .catch(function(){ S.scan="error"; render(); });
-   │
-   │ 응답 각 행 형식: {m:사용처, amt:금액, cur:ISO통화, cat:카테고리, d:"YYYY-MM-DD", t:"HH:MM", pre:bool}
-   └─ 현재는 API 미연동이라 아래 데모 결과로 대체한다. ────────────────────── */
+   - Vercel 배포(프록시 있음): /api/scan 이 서버에서 Gemini를 호출해 거래를 인식
+   - github.io / localhost (프록시 없음): 데모 결과로 대체
+   SCAN_ENDPOINT 가 빈 문자열이면 항상 데모로 동작한다. */
+var SCAN_ENDPOINT=(function(){
+  var h=location.hostname;
+  if(/github\.io$/.test(h)||h==="localhost"||h==="127.0.0.1"||h==="") return "";
+  return "/api/scan";
+})();
+function catExists(n){return cats().some(function(c){return c.n===n;});}
+/* 업로드 이미지를 축소해 base64로 (전송 크기·인식 속도 최적화) */
+function fileToScaledBase64(file,max){
+  max=max||1600;
+  return new Promise(function(resolve,reject){
+    var url=URL.createObjectURL(file),img=new Image();
+    img.onload=function(){
+      var s=Math.min(1,max/Math.max(img.width,img.height));
+      var w=Math.round(img.width*s),h=Math.round(img.height*s);
+      var c=document.createElement("canvas");c.width=w;c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      var d=c.toDataURL("image/jpeg",0.85);
+      resolve({base64:d.slice(d.indexOf(",")+1),mimeType:"image/jpeg"});
+    };
+    img.onerror=function(){URL.revokeObjectURL(url);reject(new Error("image"));};
+    img.src=url;
+  });
+}
 function startScan(){
   S.scan="loading";render();
-  setTimeout(function(){ S.scanRows=demoScanRows(); S.scan="done"; render(); },1500);
+  if(!SCAN_ENDPOINT){ setTimeout(function(){S.scanRows=demoScanRows();S.scan="done";render();},1200); return; }
+  if(!S.scanFile){ S.scan="empty";render();return; }
+  fileToScaledBase64(S.scanFile).then(function(img){
+    return fetch(SCAN_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({imageBase64:img.base64,mimeType:img.mimeType,today:TODAY,localCur:localCur()})});
+  }).then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(data){
+      var rows=(data&&data.rows)||[];
+      if(!rows.length){ S.scan="empty";render();return; }
+      S.scanRows=rows.map(function(r){
+        var cur=CUR[r.cur]?r.cur:localCur();
+        var cat=catExists(r.cat)?r.cat:cats()[0].n;
+        return {m:String(r.m||"이름 없는 지출").slice(0,80),amt:Math.max(0,Number(r.amt)||0),
+          cur:cur,cat:cat,d:/^\d{4}-\d{2}-\d{2}$/.test(r.d)?r.d:TODAY,
+          t:/^\d{1,2}:\d{2}$/.test(r.t)?r.t:nowHM(),memo:"",
+          pre:(typeof r.pre==="boolean")?r.pre:catOf(cat).pre,src:"card",pm:"card"};
+      });
+      S.scan="done";render();
+    })
+    .catch(function(){ S.scan="error";render(); });
 }
 function demoScanRows(){
   var lc=localCur();
