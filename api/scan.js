@@ -74,13 +74,22 @@ module.exports = async (req, res) => {
     }
   };
 
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const callGemini = async () => {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent";
+    const opt = { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(payload) };
+    // 순간적으로 몰려 429/503이 나면 짧게 기다렸다 최대 2회 자동 재시도(서버리스 타임아웃 고려해 대기 짧게)
+    let r = await fetch(url, opt);
+    for (let i = 0; i < 2 && (r.status === 429 || r.status === 503); i++) {
+      await sleep(700 + i * 700);
+      r = await fetch(url, opt);
+    }
+    return r;
+  };
+
   try {
-    const gres = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/" + MODEL + ":generateContent",
-      { method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify(payload) }
-    );
+    const gres = await callGemini();
+    if (gres.status === 429) { res.status(429).json({ error: "rate_limited" }); return; }
     if (!gres.ok) {
       const detail = await gres.text();
       res.status(502).json({ error: "gemini", status: gres.status, detail: detail.slice(0, 300) });

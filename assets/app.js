@@ -1117,11 +1117,12 @@ function vScan(){
       '<div class="scanline"></div></div>'+
       '<div class="small" style="text-align:center;margin-top:16px">날짜 · 사용처 · 금액을 찾고 있습니다…</div>';
   }
-  if(S.scan==="empty"||S.scan==="unreadable"||S.scan==="error"){
+  if(S.scan==="empty"||S.scan==="unreadable"||S.scan==="error"||S.scan==="limited"){
     var F={
       empty:{e:"🔍",t:"찾은 거래가 없어요",d:"영수증이나 결제 내역 화면이 맞는지<br>확인해 주세요.",a:"다른 사진 올리기"},
       unreadable:{e:"🌫",t:"글자가 잘 안 보여요",d:"빛 반사가 없는 곳에서<br>영수증이 화면에 꽉 차게 찍어주세요.",a:"다시 찍기"},
-      error:{e:"⚠️",t:"잠시 연결이 불안정해요",d:"네트워크 상태를 확인하고<br>다시 시도해 주세요.",a:"다시 시도"}
+      error:{e:"⚠️",t:"잠시 연결이 불안정해요",d:"네트워크 상태를 확인하고<br>다시 시도해 주세요.",a:"다시 시도"},
+      limited:{e:"⏳",t:"지금 이용이 많아요",d:"잠시 후 다시 시도해 주세요.<br>계속 안 되면 몇 시간 뒤에 다시 올려보세요.",a:"다시 시도"}
     }[S.scan];
     return '<div class="hd"><button class="backbtn" id="sback">‹ 뒤로</button><span class="sub">스캔</span></div>'+
       '<div class="failbox"><div class="fe">'+F.e+'</div><b>'+F.t+'</b><span>'+F.d+'</span></div>'+
@@ -1186,7 +1187,7 @@ function startScan(){
   fileToScaledBase64(S.scanFile).then(function(img){
     return fetch(SCAN_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({imageBase64:img.base64,mimeType:img.mimeType,today:TODAY,localCur:localCur()})});
-  }).then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+  }).then(function(r){ if(r.status===429){var le=new Error("429");le.rate=true;throw le;} if(!r.ok) throw new Error(r.status); return r.json(); })
     .then(function(data){
       var rows=(data&&data.rows)||[];
       if(!rows.length){ S.scan="empty";render();return; }
@@ -1200,7 +1201,7 @@ function startScan(){
       });
       S.scan="done";render();
     })
-    .catch(function(){ S.scan="error";render(); });
+    .catch(function(e){ S.scan=(e&&e.rate)?"limited":"error";render(); });
 }
 function demoScanRows(){
   var lc=localCur();
