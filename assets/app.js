@@ -959,8 +959,7 @@ function vScan(){
       '<div class="small" style="margin:14px 0 2px;text-align:center">영수증이나 은행·카드·간편결제 앱 화면을 올리면<br>여러 건을 한 번에 읽어 정리해요.</div>'+
       '<input type="file" id="scanfile" accept="image/*" style="display:none">'+
       '<button class="btn" id="btnupload" style="margin-top:16px">📷 사진 업로드</button>'+
-      '<div class="small" style="margin-top:9px;text-align:center">카메라로 찍거나 갤러리에서 고를 수 있어요</div>'+
-      '<button class="btn ghost" id="btnscanfail" style="margin-top:14px">인식 실패 화면 보기 (데모)</button></div>';
+      '<div class="small" style="margin-top:9px;text-align:center">카메라로 찍거나 갤러리에서 고를 수 있어요</div></div>';
   }
   if(S.scan==="loading"){
     return '<div class="hd"><h2>읽는 중</h2></div><div class="scanning">'+
@@ -1510,11 +1509,6 @@ document.addEventListener("click",function(e){
 
   /* 사진 업로드 → 카메라/갤러리 선택 시트 (accept=image/* + capture 미지정 = OS 기본 선택) */
   if(e.target.id==="btnupload"){var fi=$("#scanfile");if(fi)fi.click();return;}
-  /* 스캔 실패 시나리오 (데모) */
-  if(e.target.id==="btnscanfail"){
-    S.scan="loading";render();
-    setTimeout(function(){S.scan=["unreadable","empty","error"][Math.floor(Math.random()*3)];render();},1200);
-    return;}
   if(e.target.id==="btnmanual"||e.target.id==="addmore"){
     clearScanImg();S.scan="idle";S.draft={m:"",amt:"",cur:localCur(),cat:cats()[0].n,d:TODAY,t:nowHM(),memo:"",pre:false,pm:"cash",src:"manual"};
     S.detail={kind:"new"};render();return;}
