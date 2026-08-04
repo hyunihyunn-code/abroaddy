@@ -699,7 +699,25 @@ function topbar(){
   return '<div class="topbar"><button class="wsbtn" id="wsopen">'+
     '<span class="bars"><i></i><i></i><i></i></span>'+
     '<span class="nm"><b>'+p.flag+" "+esc(p.name)+'</b><span>'+cityLabel(p)+' · '+period(p)+'</span></span>'+
-    '<span class="cv">▾</span></button></div>';
+    '<span class="cv">▾</span></button>'+
+    '<button class="helpbtn" id="helpopen" aria-label="사용법 도움말">?</button></div>';
+}
+/* 도움말 — 옆으로 넘기는 주요 기능 큐레이션 */
+function helpSheet(){
+  var slides=[
+    {e:"📷",t:"캡처 한 장이면 끝",d:"영수증·카드내역·은행앱 화면을 올리면 여러 건을 한 번에 정리해요. 하단 ＋ → ‘영수증·카드내역 스캔’."},
+    {e:"🧮",t:"오늘 · 전체 쓸 수 있는 돈",d:"항공·숙소 같은 사전 예약은 빼고 현지에서 쓸 돈만 계산해요. 홈 상단 [일][전체]로 전환하세요."},
+    {e:"✈️",t:"사전 예약 · 현지 지출 분리",d:"두 봉투로 나눠 항공권 결제일에도 하루 예산이 흔들리지 않아요. 예산은 봉투의 [수정]에서 바꿔요."},
+    {e:"💸",t:"1/N은 링크로",d:"가계부 우측 위 ‘1/N 정산하기’ → 여러 건을 골라 나누면, 내 가계부엔 내 몫만 남아요."},
+    {e:"✏️",t:"일정이 바뀌면 수정",d:"MY → 내 프로젝트 [수정]에서 기간·목적지·예산을 언제든 바꿀 수 있어요. 기록은 그대로 남아요."},
+    {e:"🔒",t:"내 기록은 나만",d:"로그인하면 기록이 안전하게 저장되고, 다른 사람 데이터와 절대 섞이지 않아요."}
+  ];
+  return '<h3>어브로디 사용법</h3><div class="small" style="margin-bottom:12px">옆으로 넘겨보세요 →</div>'+
+    '<div class="helpslides" id="helpslides">'+
+      slides.map(function(s){return '<div class="helpslide"><div class="he">'+s.e+'</div><b>'+s.t+'</b><p>'+s.d+'</p></div>';}).join("")+
+    '</div>'+
+    '<div class="helpdots" id="helpdots">'+slides.map(function(_,i){return '<i'+(i===0?' class="on"':'')+'></i>';}).join("")+'</div>'+
+    '<button class="btn ghost" id="btnclose" style="margin-top:14px">닫기</button>';
 }
 function wsSheet(){
   return '<h3>프로젝트</h3><div class="small" style="margin-bottom:10px">기록할 프로젝트를 골라주세요</div>'+
@@ -981,10 +999,10 @@ function vNewProj(){
     '<div class="field" style="margin-bottom:0"><label>프로젝트 이름</label>'+
       '<input class="inp" id="n_name" value="'+esc(f.name)+'" placeholder="예: 서현이와 덴마크, 후쿠오카 여행"></div>'+
   '</div>'+
-  '<div class="card"><div class="two">'+
-      '<div class="field" style="margin-bottom:0"><label>시작일</label><input class="inp" id="n_start" type="date" value="'+f.start+'"></div>'+
+  '<div class="card">'+
+      '<div class="field"><label>시작일</label><input class="inp" id="n_start" type="date" value="'+f.start+'"></div>'+
       '<div class="field" style="margin-bottom:0"><label>종료일</label><input class="inp" id="n_end" type="date" value="'+f.end+'"></div>'+
-  '</div></div>'+
+  '</div>'+
   '<div class="card">'+
     '<div class="rowbetween" style="margin-bottom:11px"><span style="font-size:14px;font-weight:700">예산</span>'+
       '<span class="seg">'+(function(){var base=["KRW","USD","EUR","JPY"];
@@ -1088,9 +1106,15 @@ function clearScanImg(){try{if(S.scanImg)URL.revokeObjectURL(S.scanImg);}catch(_
    - Vercel 배포(프록시 있음): /api/scan 이 서버에서 Gemini를 호출해 거래를 인식
    - github.io / localhost (프록시 없음): 데모 결과로 대체
    SCAN_ENDPOINT 가 빈 문자열이면 항상 데모로 동작한다. */
+/* Gemini 스캔 프록시 위치.
+   - Vercel(동일 출처): /api/scan
+   - GitHub Pages: Vercel 프록시를 교차출처로 호출 (api/scan.js에 CORS 허용됨)
+   - localhost: 데모 (프록시 없음) */
+var VERCEL_SCAN="https://abroaddy-me-seohyun.vercel.app/api/scan";
 var SCAN_ENDPOINT=(function(){
   var h=location.hostname;
-  if(/github\.io$/.test(h)||h==="localhost"||h==="127.0.0.1"||h==="") return "";
+  if(/github\.io$/.test(h)) return VERCEL_SCAN;
+  if(h==="localhost"||h==="127.0.0.1"||h==="") return "";
   return "/api/scan";
 })();
 function catExists(n){return cats().some(function(c){return c.n===n;});}
@@ -1530,6 +1554,7 @@ document.addEventListener("click",function(e){
     closeSheet();S.detail=null;S.tab=el.dataset.go;if(S.tab==="scan")S.scan="idle";render();return;}
 
   if(e.target.closest("#wsopen")){openSheet(wsSheet());return;}
+  if(e.target.closest("#helpopen")){openSheet(helpSheet());return;}
   if((el=e.target.closest("[data-p]"))){
     S.pid=el.dataset.p;S.sel={};S.selMode=false;S.scan="idle";S.disp="local";S.unit=null;
     S.cal=(P[S.pid].end<TODAY?P[S.pid].end:TODAY).slice(0,7);
@@ -1644,7 +1669,7 @@ document.addEventListener("click",function(e){
   /* editor */
   if((el=e.target.closest("[data-edit]"))){S.detail={kind:"tx",id:+el.dataset.edit};render();return;}
   if((el=e.target.closest("[data-sedit]"))){S.detail={kind:"scan",i:+el.dataset.sedit};render();return;}
-  if(e.target.id==="godirect"){
+  if(e.target.closest("#godirect")){
     S.draft={m:"",amt:"",cur:proj().cur,cat:"식비",d:TODAY,t:nowHM(),memo:"",pre:false,split:null,pm:"cash",src:"manual"};
     S.detail={kind:"new"};render();return;}
   if(e.target.id==="dback"){S.detail=null;if(S.tab==="add"&&S.draft)S.draft=null;render();return;}
@@ -1798,6 +1823,13 @@ document.addEventListener("input",function(e){
     var t2=curTx(),v=Number(e.target.value)||0;
     var h=$("#f_hint");if(h)h.textContent=amtHint({amt:v,cur:t2.cur});}
 });
+/* 도움말 슬라이드 → 점(dot) 표시 갱신 (scroll은 캡처로 잡음) */
+document.addEventListener("scroll",function(e){
+  if(!e.target||e.target.id!=="helpslides")return;
+  var el=e.target,dots=$("#helpdots");if(!dots)return;
+  var idx=Math.round(el.scrollLeft/Math.max(1,el.clientWidth));
+  Array.prototype.forEach.call(dots.children,function(d,i){d.className=(i===idx?"on":"");});
+},true);
 /* 사진 선택 완료 → 인식 시작 */
 document.addEventListener("change",function(e){
   if(e.target.id==="scanfile"){

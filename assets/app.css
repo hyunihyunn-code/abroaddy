@@ -208,7 +208,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .inp{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--border);background:var(--white);font-size:14.5px}
 .inp:focus{border-color:var(--accent);outline:none}
 textarea.inp{resize:none;min-height:70px;font-size:14px;line-height:1.5}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.two>.field{min-width:0}
+.inp{min-width:0;max-width:100%}
+input[type=date].inp,input[type=time].inp{-webkit-appearance:none;appearance:none}
 .amtin{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:10px;padding:9px 12px;background:var(--white)}
 .amtin .cu{color:var(--muted);font-size:14px;flex:none;font-weight:600}
 .amtin input{flex:1;border:none;background:none;font-size:22px;font-weight:700;letter-spacing:-.02em;width:100%;padding:0;min-width:0}
@@ -444,3 +447,25 @@ textarea.inp{resize:none;min-height:70px;font-size:14px;line-height:1.5}
 .shotimg{width:100%;max-width:280px;max-height:300px;object-fit:contain;border-radius:16px;margin:6px auto 0;
   border:1px solid var(--line);box-shadow:0 14px 34px -20px rgba(34,54,120,.55);background:#fff}
 .dropzone .btn,.dropzone .small{width:100%;max-width:320px}
+
+/* ---------- 상단 도움말 버튼 (8:2) ---------- */
+.helpbtn{flex:none;width:44px;height:44px;border-radius:13px;font-size:19px;font-weight:800;color:var(--accent);
+  background:var(--glass-bg);border:1px solid var(--glass-brd);
+  backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);
+  box-shadow:0 10px 26px -20px rgba(34,54,120,.5)}
+.helpbtn:active{background:rgba(255,255,255,.85)}
+
+/* ---------- 도움말 슬라이드(옆으로 스와이프) ---------- */
+.helpslides{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;
+  margin:0 -4px;padding:2px 4px 4px;-webkit-overflow-scrolling:touch}
+.helpslides::-webkit-scrollbar{height:0}
+.helpslide{flex:0 0 100%;scroll-snap-align:center;box-sizing:border-box;
+  background:linear-gradient(160deg,#f2f7ff,#eef1fe);border:1px solid var(--line);border-radius:16px;
+  padding:24px 18px;text-align:center;min-height:172px;display:flex;flex-direction:column;justify-content:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7)}
+.helpslide .he{font-size:40px;margin-bottom:12px;line-height:1}
+.helpslide b{font-size:16px;font-weight:800;letter-spacing:-.02em;display:block;margin-bottom:8px;color:var(--ink)}
+.helpslide p{font-size:13px;color:var(--ink-sec);line-height:1.65;margin:0}
+.helpdots{display:flex;justify-content:center;gap:6px;margin-top:12px}
+.helpdots i{width:7px;height:7px;border-radius:50%;background:var(--grid);transition:background .2s,width .2s}
+.helpdots i.on{background:var(--accent);width:18px;border-radius:99px}
