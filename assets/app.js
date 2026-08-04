@@ -464,61 +464,22 @@ Object.keys(NORM).forEach(function(k){
   Object.keys(c).forEach(function(x){sum+=c[x];});
   NORM[k].perDay=sum;
 });
-var P={
- aarhus:{id:"aarhus",name:"서현이와 덴마크",city:"오르후스",country:"덴마크",flag:"🇩🇰",cur:"DKK",
-   cities:[{ko:"오르후스",flag:"🇩🇰",cur:"DKK"}],
-   bPre:2400000,bLocal:5100000,start:"2026-06-01",end:"2026-10-31",peers:2,purpose:"교환학생·단기파견",
-   cash:[{amt:2000,cur:"DKK",d:"2026-06-02"}]},
- shanghai:{id:"shanghai",name:"상하이 먹방 여행",city:"상하이",country:"중국",flag:"🇨🇳",cur:"CNY",
-   cities:[{ko:"상하이",flag:"🇨🇳",cur:"CNY"}],
-   bPre:620000,bLocal:460000,start:"2026-07-30",end:"2026-08-01",peers:6,purpose:"여행",cash:[]},
- europe:{id:"europe",name:"유럽 한 바퀴",city:"파리",country:"프랑스",flag:"🇫🇷",cur:"EUR",
-   cities:[{ko:"파리",flag:"🇫🇷",cur:"EUR"},{ko:"로마",flag:"🇮🇹",cur:"EUR"},{ko:"취리히",flag:"🇨🇭",cur:"CHF"}],
-   bPre:1850000,bLocal:2400000,start:"2026-08-14",end:"2026-08-27",peers:0,purpose:"여행",cash:[]}
-};
-function isMulti(p){p=p||proj();return (p.cities||[]).length>1;}
-/* 예산 변경 이력 — 최초 설정도 레코드로 */
-var BUDGETLOG=[
- {p:"aarhus",type:"pre",amt:2400000,d:"2026-05-20",memo:"최초 설정"},
- {p:"aarhus",type:"local",amt:4500000,d:"2026-05-20",memo:"최초 설정"},
- {p:"aarhus",type:"local",amt:600000,d:"2026-07-02",memo:"부모님 추가 송금"},
- {p:"shanghai",type:"pre",amt:620000,d:"2026-07-01",memo:"최초 설정"},
- {p:"shanghai",type:"local",amt:460000,d:"2026-07-01",memo:"최초 설정"},
- {p:"europe",type:"pre",amt:1850000,d:"2026-07-28",memo:"최초 설정"},
- {p:"europe",type:"local",amt:2400000,d:"2026-07-28",memo:"최초 설정"}
-];
+/* 사용자 데이터는 비어 있는 상태로 시작 — 첫 실행 시 온보딩(웰컴 → 프로젝트 생성)으로 진입.
+   (NORM 표본 데이터는 서버 집계에 해당하므로 유지 → 자동 예산·또래 비교가 작동) */
+var P={};
+function isMulti(p){p=p||proj();return !!p&&(p.cities||[]).length>1;}
+/* 예산 변경 이력 — 프로젝트 생성 시 최초 설정 레코드가 쌓임 */
+var BUDGETLOG=[];
 /* 정산 이력 */
 var SETTLE=[];
 /* 반복(고정) 지출 */
-var RECUR=[
- {id:"r1",p:"aarhus",m:"Aarhus Kollegier 월세",amt:3450,cur:"DKK",cat:"월세",day:26,pm:"account",on:true},
- {id:"r2",p:"aarhus",m:"Telenor 요금제",amt:199,cur:"DKK",cat:"통신비",day:1,pm:"card",on:true}
-];
+var RECUR=[];
 /* 내 정산 계좌 */
 var ME={bank:"",acc:"",holder:""};
-/* 표본 6명 중앙값 (현지통화) */
 
-var TX=[
- {id:1,p:"shanghai",d:"2026-07-31",t:"12:41",m:"Jia Jia Tang Bao",amt:168,cur:"CNY",cat:"식비",split:null,memo:"",pre:false,pm:"cash"},
- {id:2,p:"shanghai",d:"2026-07-31",t:"11:02",m:"Didi 디디추싱",amt:46,cur:"CNY",cat:"교통비",split:null,memo:"",pre:false},
- {id:3,p:"shanghai",d:"2026-07-30",t:"19:20",m:"상하이 타워 전망대",amt:180,cur:"CNY",cat:"티켓/입장권",split:null,memo:"118층, 현장구매 가능",pre:false},
- {id:4,p:"shanghai",d:"2026-07-30",t:"15:05",m:"Starbucks Reserve",amt:88,cur:"CNY",cat:"식비",split:null,memo:"",pre:false},
- {id:5,p:"shanghai",d:"2026-07-30",t:"10:15",m:"Metro Card 충전",amt:100,cur:"CNY",cat:"교통비",split:null,memo:"",pre:false},
- {id:6,p:"shanghai",d:"2026-07-12",t:"21:40",m:"Campanile Hotel 2박",amt:960,cur:"CNY",cat:"숙박",split:{n:3},memo:"",pre:true},
- {id:7,p:"shanghai",d:"2026-07-05",t:"14:20",m:"대한항공 ICN-PVG",amt:412000,cur:"KRW",cat:"항공",split:null,memo:"",pre:true},
- {id:11,p:"aarhus",d:"2026-07-30",t:"18:12",m:"Netto Trøjborg",amt:214,cur:"DKK",cat:"식비",split:null,memo:"",pre:false},
- {id:12,p:"aarhus",d:"2026-07-28",t:"09:00",m:"Aarhus Kollegier 월세",amt:3450,cur:"DKK",cat:"월세",split:null,memo:"",pre:false,pm:"account",rec:"r1",st:"pending"},
- {id:19,p:"aarhus",d:"2026-06-05",t:"10:30",m:"기숙사 보증금",amt:6000,cur:"DKK",cat:"보증금",split:null,memo:"퇴실 시 반환",pre:false,pm:"account"},
- {id:20,p:"aarhus",d:"2026-07-18",t:"13:20",m:"현금 인출 (ATM)",amt:340,cur:"DKK",cat:"생활용품",split:null,memo:"",pre:false,pm:"cash"},
- {id:13,p:"aarhus",d:"2026-07-25",t:"08:40",m:"Midttrafik 정기권",amt:400,cur:"DKK",cat:"교통패스",split:null,memo:"",pre:false},
- {id:14,p:"aarhus",d:"2026-07-20",t:"17:22",m:"Føtex",amt:186.5,cur:"DKK",cat:"식비",split:null,memo:"",pre:false},
- {id:15,p:"aarhus",d:"2026-07-15",t:"10:05",m:"Baresso Coffee",amt:48,cur:"DKK",cat:"식비",split:null,memo:"",pre:false},
- {id:16,p:"aarhus",d:"2026-06-28",t:"19:40",m:"Netto Trøjborg",amt:240,cur:"DKK",cat:"식비",split:null,memo:"",pre:false},
- {id:17,p:"aarhus",d:"2026-06-20",t:"14:10",m:"Lemvigh-Müller 침구",amt:780,cur:"DKK",cat:"생활용품",split:null,memo:"이불+베개 세트",pre:false},
- {id:18,p:"aarhus",d:"2026-05-14",t:"11:00",m:"핀에어 ICN-CPH",amt:1180000,cur:"KRW",cat:"항공",split:null,memo:"",pre:true}
-];
+var TX=[];
 
-var S={tab:"home",pid:"shanghai",sel:{},selMode:false,disp:"local",
+var S={tab:"home",pid:null,sel:{},selMode:false,disp:"local",
  nextId:100,scan:"idle",scanRows:[],detail:null,draft:null,cal:"2026-07",focusF:null,
  nf:{name:"",dests:[],adding:false,purpose:"여행",start:"",end:"",bPre:"",bLocal:"",bcur:"KRW",q:""},curTarget:"tx",
  unit:null, msgEdit:false, msgText:"", lastSettle:null};
@@ -527,7 +488,7 @@ var $=function(s,r){return (r||document).querySelector(s);};
 var esc=function(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});};
 
 /* ---------- persistence (localStorage) ---------- */
-var STOREKEY="abrody_data_v1", SEENKEY="abrody_seen_v1";
+var STOREKEY="abrody_data_v2", SEENKEY="abrody_seen_v2";
 function stash(){
   try{localStorage.setItem(STOREKEY,JSON.stringify({
     P:P,TX:TX,customCats:customCats,BUDGETLOG:BUDGETLOG,SETTLE:SETTLE,RECUR:RECUR,ME:ME,
@@ -1033,22 +994,6 @@ function vScan(){
     '<button class="btn" id="btnsave">이대로 저장하기</button>'+
     '<button class="btn ghost" id="btncancel" style="margin-top:8px">다시 올리기</button>';
 }
-function receiptShot(){
-  return '<div class="rcpt"><div class="rh">一蘭 道頓堀店</div><div class="rs">大阪市中央区宗右衛門町</div>'+
-    '<div class="rl"></div>'+
-    '<div class="rr"><span>2026/07/31</span><span>12:41</span></div><div class="rl"></div>'+
-    '<div class="rr"><span>天然とんこつラーメン</span><span>980</span></div>'+
-    '<div class="rr"><span>替玉</span><span>200</span></div><div class="rl"></div>'+
-    '<div class="rr tot"><span>合計</span><span class="hit">¥1,180</span></div>'+
-    '<div class="rf">ありがとうございました</div></div>';
-}
-function shot(){
-  var rows=S.pid==="aarhus"
-    ?[["Netto Trøjborg","오늘 18:12","214,00 kr"],["Aarhus Cykel","오늘 15:40","320,00 kr"],["Baresso Coffee","오늘 10:05","48,00 kr"]]
-    :[["Jia Jia Tang Bao","오늘 12:41","¥168"],["Didi Chuxing","오늘 11:02","¥46"],["Lawson 편의점","오늘 09:20","¥23"]];
-  return '<div class="fakeshot"><div class="fbar"><span>이용내역</span><span>7월</span></div><ul>'+
-    rows.map(function(r){return '<li><div>'+r[0]+'<span>'+r[1]+'</span></div><div style="font-weight:700">'+r[2]+'</div></li>';}).join("")+'</ul></div>';
-}
 function clearScanImg(){try{if(S.scanImg)URL.revokeObjectURL(S.scanImg);}catch(_){}S.scanImg=null;S.scanFile=null;}
 
 /* 업로드한 사진을 인식한다.
@@ -1069,13 +1014,13 @@ function startScan(){
   setTimeout(function(){ S.scanRows=demoScanRows(); S.scan="done"; render(); },1500);
 }
 function demoScanRows(){
-  var rows=S.pid==="aarhus"
-    ?[{m:"Netto Trøjborg",amt:214,cur:"DKK",cat:"식비",d:TODAY,t:"18:12",memo:"",pre:false},
-      {m:"Aarhus Cykel",amt:320,cur:"DKK",cat:"생활용품",d:TODAY,t:"15:40",memo:"",pre:false},
-      {m:"Baresso Coffee",amt:48,cur:"DKK",cat:"식비",d:TODAY,t:"10:05",memo:"",pre:false}]
-    :[{m:"Jia Jia Tang Bao",amt:168,cur:"CNY",cat:"식비",d:TODAY,t:"12:41",memo:"",pre:false},
-      {m:"Didi Chuxing",amt:46,cur:"CNY",cat:"교통비",d:TODAY,t:"11:02",memo:"",pre:false},
-      {m:"Lawson 편의점",amt:23,cur:"CNY",cat:"생활용품",d:TODAY,t:"09:20",memo:"",pre:false}];
+  var lc=localCur();
+  var a=function(krw){var v=fromKRW(krw,lc);return CUR[lc].dec?Math.round(v*100)/100:Math.round(v);};
+  var rows=[
+    {m:"Supermarket",amt:a(9200),cur:lc,cat:"식비",d:TODAY,t:"18:12",memo:"",pre:false},
+    {m:"Cafe",amt:a(6400),cur:lc,cat:"식비",d:TODAY,t:"15:40",memo:"",pre:false},
+    {m:"Metro / Bus",amt:a(1600),cur:lc,cat:"교통비",d:TODAY,t:"10:05",memo:"",pre:false}
+  ];
   rows.forEach(function(r){r.src="card";r.pm="card";});
   return rows;
 }
@@ -1214,8 +1159,8 @@ function vMy(){
   '<div class="card"><div style="font-size:14px;font-weight:600;margin-bottom:8px">내 카테고리</div>'+
     '<div class="catrow">'+cats().map(function(c){return '<button style="cursor:default">'+c.i+' '+esc(c.n)+'</button>';}).join("")+
     '<button class="addc" id="addcat2">＋ 직접 추가</button></div></div>'+
-  '<div class="card"><div class="rowbetween"><span><b style="font-size:14px;font-weight:600">예시 데이터 다시 불러오기</b>'+
-    '<span class="small" style="display:block;margin-top:3px">기록·정산·예산 변경을 처음 상태로 되돌려요</span></span>'+
+  '<div class="card"><div class="rowbetween"><span><b style="font-size:14px;font-weight:600">모든 데이터 지우기</b>'+
+    '<span class="small" style="display:block;margin-top:3px">프로젝트·기록·정산을 모두 지우고 처음 화면으로 돌아가요</span></span>'+
     '<button class="minib" id="resetdemo">초기화</button></div></div>'+
   '<div class="small" style="text-align:center;margin:14px 2px 4px;line-height:1.6">어브로디 · 해외 지출 가계부 프로토타입<br>환율·스캔 결과는 시연용 예시 값입니다</div>'+
   '<div style="height:8px"></div>';
@@ -1234,9 +1179,8 @@ function vWelcome(){
       '<div class="wel-item"><span class="e">💸</span><span><b>1/N은 링크로</b>'+
         '<span>여러 건을 골라 한 번에 나누고, 내 가계부엔 내 몫만 남아요</span></span></div>'+
     '</div>'+
-    '<button class="btn" id="welstart">어브로디 시작하기</button>'+
-    '<button class="btn ghost" id="welnew" style="margin-top:8px">직접 새 여행 만들기</button>'+
-    '<div class="wel-foot">가입 없이 바로 시작할 수 있어요 · 둘러볼 예시 데이터가 담겨 있어요</div></div>';
+    '<button class="btn" id="welstart">첫 여행 만들기</button>'+
+    '<div class="wel-foot">가입 없이 바로 시작할 수 있어요</div></div>';
 }
 function vDone(){
   var p=proj(),d=Math.max(1,days(p.start,p.end)+1);
@@ -1254,7 +1198,7 @@ function vDone(){
 /* ---------- render ---------- */
 function render(){
   var v=$("#view"),h;
-  if(S.tab==="welcome")h=vWelcome();
+  if(!hasProj()&&S.tab!=="newproj")h=vWelcome();
   else if(S.tab==="done")h=vDone();
   else if(S.detail)h=vEditor();
   else if(S.tab==="newproj")h=vNewProj();
@@ -1263,7 +1207,7 @@ function render(){
   else h=S.tab==="home"?vHome():S.tab==="ledger"?vLedger():S.tab==="report"?vReport():vMy();
   v.innerHTML=h;
   var tb=document.querySelector(".tabbar");
-  if(tb)tb.style.display=(S.tab==="welcome"||S.tab==="newproj"||S.tab==="done")?"none":"";
+  if(tb)tb.style.display=(!hasProj()||S.tab==="newproj"||S.tab==="done")?"none":"";
   Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(b){
     b.setAttribute("aria-current",!S.detail&&(b.dataset.tab===S.tab||(S.tab==="scan"&&b.dataset.tab==="add")));});
   syncSel();v.scrollTop=0;
@@ -1448,8 +1392,7 @@ function addCatSheet(){
 document.addEventListener("click",function(e){
   var el;
   /* onboarding */
-  if(e.target.id==="welstart"){try{localStorage.setItem(SEENKEY,"1");}catch(_){}S.tab="home";render();return;}
-  if(e.target.id==="welnew"){try{localStorage.setItem(SEENKEY,"1");}catch(_){}S.tab="newproj";render();return;}
+  if(e.target.id==="welstart"){S.tab="newproj";render();return;}
   if(e.target.id==="donego"){S.tab="home";render();return;}
   if(e.target.id==="resetdemo"){resetDemo();return;}
   if((el=e.target.closest(".tab"))){
@@ -1654,6 +1597,9 @@ document.addEventListener("click",function(e){
       cities:f.dests.map(function(x){return {ko:x.ko,flag:x.flag,cur:x.cur};}),cash:[],
       bPre:toKRW(Number(f.bPre)||0,f.bcur),bLocal:toKRW(Number(f.bLocal),f.bcur),purpose:f.purpose,
       start:f.start,end:f.end};
+    /* 최초 예산 설정도 변경 이력의 첫 레코드로 (PRD F2-3) */
+    BUDGETLOG.push({p:key,type:"pre",amt:P[key].bPre,d:TODAY,memo:"최초 설정"});
+    BUDGETLOG.push({p:key,type:"local",amt:P[key].bLocal,d:TODAY,memo:"최초 설정"});
     S.pid=key;S.tab="done";S.disp="local";
     S.cal=(f.end<TODAY?f.end:(f.start>TODAY?f.start:TODAY)).slice(0,7);
     S.nf={name:"",dests:[],adding:false,purpose:"여행",start:"",end:"",bPre:"",bLocal:"",bcur:"KRW",q:""};
@@ -1716,7 +1662,6 @@ document.addEventListener("keydown",function(e){
 
 /* ---------- init ---------- */
 load();
-try{ if(!localStorage.getItem(SEENKEY)) S.tab="welcome"; }catch(_){}
-if(!P[S.pid])S.pid=Object.keys(P)[0];
+if(!P[S.pid])S.pid=Object.keys(P)[0]||null;
 render();
 })();

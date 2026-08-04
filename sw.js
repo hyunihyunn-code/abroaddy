@@ -1,6 +1,7 @@
-/* 어브로디 · service worker — offline-capable app shell.
-   Bump CACHE when you change core files. */
-const CACHE = 'abrody-v2';
+/* 어브로디 · service worker — offline 지원 + 최신본 우선.
+   앱을 자주 고치는 단계라 HTML/JS/CSS는 network-first로 서빙해
+   캐시가 오래된 화면을 붙잡는 문제를 막는다. Bump CACHE when core files change. */
+const CACHE = 'abrody-v3';
 const CORE = [
   './',
   './index.html',
@@ -31,15 +32,30 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+
+  // 교차 출처(Pretendard 폰트 등): cache-first
+  if (url.origin !== location.origin) {
+    e.respondWith(
+      caches.match(req).then((hit) => hit || fetch(req).then((res) => {
+        if (res.ok && url.host.includes('jsdelivr.net')) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        return res;
+      }).catch(() => hit))
+    );
+    return;
+  }
+
+  // 동일 출처(앱 파일): network-first → 최신본을 받아 캐시 갱신, 오프라인이면 캐시 폴백
   e.respondWith(
-    caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      const url = new URL(req.url);
-      const cacheable = res.ok && (url.origin === location.origin || url.host.includes('jsdelivr.net'));
-      if (cacheable) {
+    fetch(req).then((res) => {
+      if (res.ok) {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy));
       }
       return res;
-    }).catch(() => caches.match('./index.html')))
+    }).catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
   );
 });
