@@ -521,7 +521,8 @@ function loadUserData(){
   return Promise.all([
     SB.from("projects").select("*, project_cities(city_id,currency,sort_order), cash_topups(amount,currency,topped_up_on)").order("created_at"),
     SB.from("transactions").select("*").order("occurred_on",{ascending:false}),
-    SB.from("budget_log").select("*")
+    SB.from("budget_log").select("*"),
+    SB.from("settlements").select("*").eq("status","active")
   ]).then(function(r){
     (r[0].data||[]).forEach(function(pr){
       var pcs=(pr.project_cities||[]).slice().sort(function(a,b){return (a.sort_order||0)-(b.sort_order||0);});
@@ -537,9 +538,14 @@ function loadUserData(){
       TX.push({id:t.id,p:t.project_id,d:t.occurred_on,t:t.occurred_at?String(t.occurred_at).slice(0,5):"",
         m:t.merchant||"",amt:+t.amount,cur:t.currency,cat:CAT_NAME[t.category_id]||"식비",
         pre:t.is_pre,pm:t.payment_method,split:t.split_count?{n:t.split_count}:null,memo:t.memo||"",
-        src:srcFromDb(t.source),keep:t.keep_receipt,rec:t.recurring_rule_id||null,st:t.status});
+        src:srcFromDb(t.source),keep:t.keep_receipt,rec:t.recurring_rule_id||null,st:t.status,sid:t.settlement_id||null});
     });
     (r[2].data||[]).forEach(function(b){BUDGETLOG.push({p:b.project_id,type:b.envelope,amt:+b.delta_krw,d:b.logged_on,memo:b.memo||""});});
+    (r[3].data||[]).forEach(function(s){
+      var ids=TX.filter(function(t){return t.sid===s.id;}).map(function(t){return t.id;});
+      SETTLE.push({code:s.code,pname:(P[s.project_id]||{}).name||"",pid:s.project_id,ids:ids,n:s.split_count,
+        cnt:ids.length,each:+s.amount_per_person_krw,status:s.status,d:(s.created_at||"").slice(0,10),sid:s.id});
+    });
     if(!P[S.pid])S.pid=Object.keys(P)[0]||null;
   });
 }
@@ -582,6 +588,25 @@ function dbCashTopup(pid,amt,cur,d){return SB.from("cash_topups").insert(
 function dbAddCategory(name,icon){return SB.from("categories").insert(
   {user_id:USER.id,name:name,icon:icon,is_pre:false}).select("id").single()
   .then(function(r){if(sbErr(r.error,"카테고리 저장 실패"))return null;CAT_ID[name]=r.data.id;CAT_NAME[r.data.id]=name;return r.data.id;});}
+/* 정산 저장: settlements insert → 포함된 거래에 settlement_id·split_count 반영 */
+function dbInsertSettlement(rec,ids){
+  return SB.from("settlements").insert({project_id:rec.pid,code:rec.code,split_count:rec.n,
+    amount_per_person_krw:rec.each,message:rec.message||null,status:"active",created_by:USER.id})
+    .select("id").single().then(function(r){
+      if(sbErr(r.error,"정산 저장 실패"))return null;
+      var sid=r.data.id;
+      return SB.from("transactions").update({settlement_id:sid,split_count:rec.n}).in("id",ids)
+        .then(function(u){sbErr(u.error,"정산 반영 실패");return sid;});
+    });
+}
+/* 정산 취소: settlements revoked → 거래 원복(settlement_id·split 제거) */
+function dbRevokeSettlement(sid,ids){
+  if(!sid)return Promise.resolve();
+  return SB.from("settlements").update({status:"revoked"}).eq("id",sid).then(function(){
+    return SB.from("transactions").update({settlement_id:null,split_count:null}).in("id",ids)
+      .then(function(u){sbErr(u.error,"정산 취소 반영 실패");});
+  });
+}
 
 function signOut(){SB.auth.signOut().then(function(){location.reload();});}
 function hasProj(){return Object.keys(P).length>0;}
@@ -672,30 +697,26 @@ function toastUndo(m){
   clearTimeout(toast._t);
   toast._t=setTimeout(function(){e.classList.remove("show","withbtn");},8000);
 }
-/* 정산 요청 — 네이티브 공유 시트, 실패 시 클립보드 복사 폴백 */
+/* 정산 요청 — 네이티브 공유 시트, 실패 시 클립보드 복사 (되돌리기 토스트와 분리, 조용히 수행) */
 function shareSettlement(text){
-  var copied=function(){toastUndo("정산 링크를 복사했어요 🔗<br>내 가계부에는 내 몫만 남았습니다");};
-  var shared=function(){toastUndo("정산 요청을 공유했어요 🔗<br>내 가계부에는 내 몫만 남았습니다");};
   if(navigator.share){
-    navigator.share({title:"어브로디 정산 요청",text:text}).then(shared).catch(function(err){
-      if(err&&err.name==="AbortError"){toastUndo("정산을 준비했어요 🔗<br>내 가계부에는 내 몫만 남았습니다");}
-      else{copyText(text,copied);}
+    navigator.share({title:"어브로디 정산 요청",text:text}).catch(function(err){
+      if(!err||err.name!=="AbortError")copyText(text);
     });
-  }else{copyText(text,copied);}
+  }else copyText(text);
 }
-function copyText(text,onDone){
+function copyText(text){
   if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(onDone).catch(function(){legacyCopy(text,onDone);});
-  }else legacyCopy(text,onDone);
+    navigator.clipboard.writeText(text).catch(function(){legacyCopy(text);});
+  }else legacyCopy(text);
 }
-function legacyCopy(text,onDone){
+function legacyCopy(text){
   try{
     var ta=document.createElement("textarea");ta.value=text;
     ta.style.position="fixed";ta.style.top="-1000px";ta.style.opacity="0";
     document.body.appendChild(ta);ta.focus();ta.select();
-    var ok=document.execCommand("copy");document.body.removeChild(ta);
-    if(ok)onDone();else toast("복사가 안 됐어요 · 메시지를 길게 눌러 복사해 주세요");
-  }catch(_){toast("복사가 안 됐어요 · 메시지를 길게 눌러 복사해 주세요");}
+    document.execCommand("copy");document.body.removeChild(ta);
+  }catch(_){}
 }
 function revokeSettle(code,isUndo){
   if(!code)return;
@@ -703,9 +724,11 @@ function revokeSettle(code,isUndo){
   for(var i=0;i<SETTLE.length;i++)if(SETTLE[i].code===code)r=SETTLE[i];
   if(!r||r.status!=="active")return;
   r.status="revoked";
-  r.ids.forEach(function(id){var t=byId(id);if(t)t.split=null;});
+  r.ids.forEach(function(id){var t=byId(id);if(t){t.split=null;t.sid=null;}});
+  dbRevokeSettlement(r.sid,r.ids);                 /* 서버에도 취소 반영 + 금액 원복 */
+  var ix=SETTLE.indexOf(r);if(ix>-1)SETTLE.splice(ix,1);  /* 목록에서 제거(새로고침과 일치) */
   var e=$("#toast");e.classList.remove("show","withbtn");
-  render();toast(isUndo?"정산을 되돌렸어요":"정산을 취소했어요 · 링크가 만료됐습니다");
+  render();toast(isUndo?"정산을 되돌렸어요":"정산을 취소했어요 · 링크가 만료됩니다");
 }
 function toast(m){var e=$("#toast");e.innerHTML=m;e.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove("show");},2300);}
 function period(p){
@@ -1633,13 +1656,15 @@ document.addEventListener("click",function(e){
     var sn=+el.dataset.share;
     var picked=Object.keys(S.sel).filter(function(k){return S.sel[k];});
     var sumK=0;
-    picked.forEach(function(id){var t=byId(id);if(t){t.split={n:sn};sumK+=toKRW(t.amt,t.cur);dbUpdateTx(t);}});
+    picked.forEach(function(id){var t=byId(id);if(t){t.split={n:sn};sumK+=toKRW(t.amt,t.cur);}});
+    var shareText=S.msgText||(proj().flag+" "+proj().name+" 정산 요청이에요 💸");
     var rec={code:splitCode(),pname:proj().name,pid:S.pid,ids:picked.slice(),n:sn,
-             cnt:picked.length,each:sumK/sn,status:"active",d:TODAY};
+             cnt:picked.length,each:sumK/sn,status:"active",d:TODAY,message:shareText};
     SETTLE.push(rec); S._code=null; S.lastSettle=rec;
-    var shareText=S.msgText||(proj().name+" 정산 요청이에요 💸");
-    shareSettlement(shareText);   /* 네이티브 공유 시트 · 실패 시 복사 */
+    dbInsertSettlement(rec,picked).then(function(sid){if(sid)picked.forEach(function(id){var t=byId(id);if(t)t.sid=sid;});});
+    shareSettlement(shareText);   /* 네이티브 공유 시트 · 실패 시 복사 (조용히) */
     S.sel={};S.selMode=false;S.msgEdit=false;S.msgText="";S.msgCustom=false;closeSheet();render();
+    toastUndo("정산을 보냈어요 🔗<br>내 가계부엔 내 몫만 남았어요");   /* 항상 되돌리기 제공 */
     return;}
   if(e.target.id==="undosettle"){revokeSettle(S.lastSettle&&S.lastSettle.code,true);return;}
   if((el=e.target.closest("[data-revoke]"))){
