@@ -1463,17 +1463,29 @@ function splitCode(){
   if(!S._code)S._code=(Math.random().toString(36).slice(2,7)).toUpperCase();
   return S._code;
 }
+/* 실제로 열리는 정산 링크 — 배포된 s.html + 나눈 내용을 URL 파라미터로 (백엔드 조회 없이) */
+function settleUrl(items,n,each){
+  var base=location.href.replace(/[^\/?#]*([?#].*)?$/,"");   /* 현재 앱의 디렉터리 URL */
+  var p=new URLSearchParams();
+  p.set("t",proj().name); p.set("f",proj().flag||"");
+  p.set("e",String(Math.round(each))); p.set("n",String(n)); p.set("c",String(items.length));
+  p.set("i",items.slice(0,6).map(function(t){var k=toKRW(t.amt,t.cur);
+    return [t.m||"지출",fmt(k,t.cur),krwOnly(k)].join("~");}).join("|"));
+  if(ME.acc)p.set("a",(ME.bank?ME.bank+" ":"")+ME.acc+(ME.holder?" ("+ME.holder+")":""));
+  return base+"s.html?"+p.toString();
+}
 function splitSheet(n){
   S._lastN=n;
   var ids=Object.keys(S.sel).filter(function(k){return S.sel[k];});
   var items=ids.map(byId),sum=items.reduce(function(s,t){return s+toKRW(t.amt,t.cur);},0),each=sum/n;
-  var link="abroaddy.app/s/"+splitCode();
+  var link=settleUrl(items,n,each);
   /* 통화별 소계 */
   var byCur={}; items.forEach(function(t){byCur[t.cur]=(byCur[t.cur]||0)+t.amt;});
   var curLine=Object.keys(byCur).map(function(c){return fmt(toKRW(byCur[c],c),c);}).join(" · ");
   var acc = ME.acc ? ME.bank+" "+ME.acc+" ("+ME.holder+")" : "";
-  if(!S.msgText) S.msgText = proj().name+" 정산이에요 💸\n한 사람당 "+krwOnly(each)+
-    (acc?"\n\n"+acc:"")+"\n\n링크 열면 무엇을 나눴는지 바로 보여요\n"+link;
+  /* 사용자가 직접 고치지 않았으면 인원 변경에 맞춰 문구·링크를 다시 만든다 */
+  if(!S.msgCustom) S.msgText = proj().flag+" "+proj().name+" 정산이에요 💸\n한 사람당 "+krwOnly(each)+
+    (acc?"\n"+acc:"")+"\n\n무엇을 나눴는지 링크에서 바로 볼 수 있어요\n"+link;
 
   openSheet('<h3>'+items.length+'건을 나눠 보내기</h3>'+
     '<div class="small">합계 '+krwOnly(sum)+(Object.keys(byCur).length>1||items[0].cur!=="KRW"?' &nbsp;('+curLine+')':'')+'</div>'+
@@ -1626,7 +1638,7 @@ document.addEventListener("click",function(e){
     SETTLE.push(rec); S._code=null; S.lastSettle=rec;
     var shareText=S.msgText||(proj().name+" 정산 요청이에요 💸");
     shareSettlement(shareText);   /* 네이티브 공유 시트 · 실패 시 복사 */
-    S.sel={};S.selMode=false;S.msgEdit=false;S.msgText="";closeSheet();render();
+    S.sel={};S.selMode=false;S.msgEdit=false;S.msgText="";S.msgCustom=false;closeSheet();render();
     return;}
   if(e.target.id==="undosettle"){revokeSettle(S.lastSettle&&S.lastSettle.code,true);return;}
   if((el=e.target.closest("[data-revoke]"))){
@@ -1699,11 +1711,10 @@ document.addEventListener("click",function(e){
 
   /* 공유 문구 수정 */
   if(e.target.id==="msgedit"){
-    if(S.msgEdit){var mb=$("#msgbox");if(mb)S.msgText=mb.value;}
+    if(S.msgEdit){var mb=$("#msgbox");if(mb){S.msgText=mb.value;S.msgCustom=true;}}
     S.msgEdit=!S.msgEdit;
-    var cnt=Object.keys(S.sel).filter(function(k){return S.sel[k];}).length;
     splitSheet(S._lastN||3);return;}
-  if(e.target.id==="msgreset"){S.msgText="";S.msgEdit=false;splitSheet(S._lastN||3);return;}
+  if(e.target.id==="msgreset"){S.msgText="";S.msgCustom=false;S.msgEdit=false;splitSheet(S._lastN||3);return;}
 
   /* 사진 업로드 → 카메라/갤러리 선택 시트 (accept=image/* + capture 미지정 = OS 기본 선택) */
   if(e.target.id==="btnupload"){var fi=$("#scanfile");if(fi)fi.click();return;}

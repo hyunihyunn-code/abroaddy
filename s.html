@@ -50,14 +50,14 @@ body::before{content:"";position:fixed;inset:-24% -14% auto -14%;height:78vh;z-i
 <div class="card">
   <div class="top"><span class="brand">어브로디</span><span class="url" id="url">abroaddy.app/s/8OJBV</span></div>
   <div class="body">
-    <div class="who">🇨🇳 상하이 먹방 여행</div>
+    <div class="who" id="who">🇨🇳 상하이 먹방 여행</div>
     <div class="amt" id="amt">₩13,625</div>
-    <div class="sub">2건을 3명이 나눈 금액</div>
-    <div class="list">
+    <div class="sub" id="sub">2건을 3명이 나눈 금액</div>
+    <div class="list" id="list">
       <div class="li"><span>Jia Jia Tang Bao</span><span><b>CN¥168</b><span class="krw">₩32,088</span></span></div>
       <div class="li"><span>Didi 디디추싱</span><span><b>CN¥46</b><span class="krw">₩8,786</span></span></div>
     </div>
-    <div class="acc">
+    <div class="acc" id="accbox">
       <div class="lb">받는 계좌</div>
       <div class="no" id="acc">신한 110-123-456 · 김도윤</div>
     </div>
@@ -68,6 +68,27 @@ body::before{content:"";position:fixed;inset:-24% -14% auto -14%;height:78vh;z-i
 </div>
 <div class="toast" id="toast">계좌번호를 복사했어요</div>
 <script>
+(function(){
+  var q=new URLSearchParams(location.search);
+  var esc=function(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});};
+  document.getElementById("url").textContent=location.host;
+  if(!q.get("e"))return; /* 파라미터 없으면 데모 화면 유지 */
+  var t=q.get("t")||"정산", f=q.get("f")||"", each=+q.get("e")||0, n=q.get("n")||"", c=q.get("c")||"", a=q.get("a")||"";
+  var won=function(v){return "₩"+Number(v||0).toLocaleString("ko-KR");};
+  document.getElementById("who").textContent=(f?f+" ":"")+t;
+  document.getElementById("amt").textContent=won(each);
+  document.getElementById("sub").textContent=(c?c+"건을 ":"")+(n?n+"명이 ":"")+"나눈 금액";
+  var items=(q.get("i")||"").split("|").filter(Boolean);
+  if(items.length){
+    document.getElementById("list").innerHTML=items.map(function(row){
+      var p=row.split("~");
+      return '<div class="li"><span>'+esc(p[0]||"")+'</span><span><b>'+esc(p[1]||"")+'</b>'+
+        (p[2]&&p[2]!==p[1]?'<span class="krw">'+esc(p[2])+'</span>':'')+'</span></div>';
+    }).join("");
+  }
+  if(a){document.getElementById("acc").textContent=a;}
+  else{document.getElementById("accbox").style.display="none";document.getElementById("copy").style.display="none";}
+})();
 document.getElementById("copy").addEventListener("click",function(){
   var acc=(document.getElementById("acc").textContent.match(/[\d-]{6,}/)||[""])[0];
   var done=function(){var t=document.getElementById("toast");t.classList.add("show");setTimeout(function(){t.classList.remove("show");},2000);};
