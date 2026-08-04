@@ -435,3 +435,12 @@ textarea.inp{resize:none;min-height:70px;font-size:14px;line-height:1.5}
 .wel-item b{display:block;font-size:13.5px;font-weight:700;letter-spacing:-.01em}
 .wel-item>span>span{display:block;font-size:12px;color:var(--muted);line-height:1.55;margin-top:3px}
 .wel-foot{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.5}
+
+/* ---------- scan: photo upload ---------- */
+.dropzone{display:flex;flex-direction:column;align-items:center}
+.upicon{width:96px;height:96px;border-radius:28px;margin:14px auto 2px;display:grid;place-items:center;
+  font-size:42px;background:var(--grad-accent);color:#fff;
+  box-shadow:0 20px 40px -14px rgba(70,90,200,.5)}
+.shotimg{width:100%;max-width:280px;max-height:300px;object-fit:contain;border-radius:16px;margin:6px auto 0;
+  border:1px solid var(--line);box-shadow:0 14px 34px -20px rgba(34,54,120,.55);background:#fff}
+.dropzone .btn,.dropzone .small{width:100%;max-width:320px}

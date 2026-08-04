@@ -825,9 +825,7 @@ function vLedger(){
 function vAdd(){
   return '<div class="hd"><h2>지출 추가</h2></div>'+
   '<button class="bigopt" data-go="scan"><span class="em">📷</span><span>'+
-    '<b>영수증 · 카드 내역 스캔하기</b><span>화면을 올리면 여러 건을 한 번에 정리해요</span></span></button>'+
-  '<button class="bigopt" data-go="scan" data-src="receipt"><span class="em">🧾</span><span>'+
-    '<b>영수증 촬영하기</b><span>현금으로 낸 돈도 사진으로 기록해요</span></span></button>'+
+    '<b>영수증 · 카드내역 스캔</b><span>영수증이나 결제 내역 화면을 올리면 여러 건을 한 번에 정리해요</span></span></button>'+
   '<button class="bigopt" id="godirect"><span class="em">✍️</span><span>'+
     '<b>직접 작성하기</b><span>현금으로 낸 돈이나 인식되지 않은 지출</span></span></button>'+
   '<div class="tip"><span class="e">💡</span><p>현금 결제는 인식이 안 돼요. 직접 작성으로 남겨두면 또래 비교가 더 정확해집니다.</p></div>';
@@ -994,16 +992,19 @@ function budgetHint(){
 function vScan(){
   var isR=(S.scanSrc==="receipt");
   if(S.scan==="idle"){
-    return '<div class="hd"><button class="backbtn" id="sback">‹ 뒤로</button><span class="sub">'+(isR?"영수증 촬영":"결제내역 스캔")+'</span></div>'+
-    '<div class="dropzone"><div class="small" style="margin-bottom:12px">'+
-      (isR?'영수증을 화면에 꽉 차게 찍어주세요.<br>사진은 원하실 때만 보관할 수 있어요.'
-          :'은행 · 카드 · 간편결제 앱 화면을 그대로 올리면<br>여러 건을 한 번에 읽어 정리합니다.')+'</div>'+
-      (isR?receiptShot():shot())+
-      '<button class="btn" id="btnscan" style="margin-top:14px">'+(isR?"이 영수증 올리기":"이 화면 올리기")+'</button>'+
-      '<button class="btn ghost" id="btnscanfail" style="margin-top:8px">흐릿한 사진 올려보기</button></div>';
+    return '<div class="hd"><button class="backbtn" id="sback">‹ 뒤로</button><span class="sub">영수증·카드내역 스캔</span></div>'+
+    '<div class="dropzone">'+
+      (S.scanImg?'<img class="shotimg" src="'+S.scanImg+'" alt="업로드한 사진">':'<div class="upicon">📷</div>')+
+      '<div class="small" style="margin:14px 0 2px;text-align:center">영수증이나 은행·카드·간편결제 앱 화면을 올리면<br>여러 건을 한 번에 읽어 정리해요.</div>'+
+      '<input type="file" id="scanfile" accept="image/*" style="display:none">'+
+      '<button class="btn" id="btnupload" style="margin-top:16px">📷 사진 업로드</button>'+
+      '<div class="small" style="margin-top:9px;text-align:center">카메라로 찍거나 갤러리에서 고를 수 있어요</div>'+
+      '<button class="btn ghost" id="btnscanfail" style="margin-top:14px">인식 실패 화면 보기 (데모)</button></div>';
   }
   if(S.scan==="loading"){
-    return '<div class="hd"><h2>읽는 중</h2></div><div class="scanning">'+(isR?receiptShot():shot())+'<div class="scanline"></div></div>'+
+    return '<div class="hd"><h2>읽는 중</h2></div><div class="scanning">'+
+      (S.scanImg?'<img class="shotimg" src="'+S.scanImg+'" alt="업로드한 사진">':'<div class="upicon">📷</div>')+
+      '<div class="scanline"></div></div>'+
       '<div class="small" style="text-align:center;margin-top:16px">날짜 · 사용처 · 금액을 찾고 있습니다…</div>';
   }
   if(S.scan==="empty"||S.scan==="unreadable"||S.scan==="error"){
@@ -1019,6 +1020,7 @@ function vScan(){
       '<div class="small" style="text-align:center;margin-top:10px">올린 사진을 보면서 적을 수 있어요</div>';
   }
   return '<div class="hd"><h2>'+S.scanRows.length+'건을 찾았어요</h2><span class="sub">저장 전 수정 가능</span></div>'+
+    '<div class="tip" style="margin-bottom:11px"><span class="e">✨</span><p>지금은 예시 인식 결과예요 · 실제 서비스에서는 올린 사진을 AI가 읽어 채워줍니다.</p></div>'+
     S.scanRows.map(function(r,i){
       var c=catOf(r.cat);
       return '<div class="result"><span class="ic">'+c.i+'</span><span class="mid">'+
@@ -1046,6 +1048,36 @@ function shot(){
     :[["Jia Jia Tang Bao","오늘 12:41","¥168"],["Didi Chuxing","오늘 11:02","¥46"],["Lawson 편의점","오늘 09:20","¥23"]];
   return '<div class="fakeshot"><div class="fbar"><span>이용내역</span><span>7월</span></div><ul>'+
     rows.map(function(r){return '<li><div>'+r[0]+'<span>'+r[1]+'</span></div><div style="font-weight:700">'+r[2]+'</div></li>';}).join("")+'</ul></div>';
+}
+function clearScanImg(){try{if(S.scanImg)URL.revokeObjectURL(S.scanImg);}catch(_){}S.scanImg=null;S.scanFile=null;}
+
+/* 업로드한 사진을 인식한다.
+   ┌─ 실제 서비스 연동 지점 ───────────────────────────────────────────────
+   │ 여기서 S.scanFile(업로드 이미지)을 Gemini / Claude Vision API로 보내
+   │ 날짜·사용처·금액·통화·카테고리를 인식한 뒤 S.scanRows 배열로 채운다. 예)
+   │
+   │   var body=new FormData(); body.append("image", S.scanFile);
+   │   fetch("/api/scan",{method:"POST",body:body})
+   │     .then(function(r){return r.json();})
+   │     .then(function(rows){ S.scanRows=rows; S.scan="done"; render(); })
+   │     .catch(function(){ S.scan="error"; render(); });
+   │
+   │ 응답 각 행 형식: {m:사용처, amt:금액, cur:ISO통화, cat:카테고리, d:"YYYY-MM-DD", t:"HH:MM", pre:bool}
+   └─ 현재는 API 미연동이라 아래 데모 결과로 대체한다. ────────────────────── */
+function startScan(){
+  S.scan="loading";render();
+  setTimeout(function(){ S.scanRows=demoScanRows(); S.scan="done"; render(); },1500);
+}
+function demoScanRows(){
+  var rows=S.pid==="aarhus"
+    ?[{m:"Netto Trøjborg",amt:214,cur:"DKK",cat:"식비",d:TODAY,t:"18:12",memo:"",pre:false},
+      {m:"Aarhus Cykel",amt:320,cur:"DKK",cat:"생활용품",d:TODAY,t:"15:40",memo:"",pre:false},
+      {m:"Baresso Coffee",amt:48,cur:"DKK",cat:"식비",d:TODAY,t:"10:05",memo:"",pre:false}]
+    :[{m:"Jia Jia Tang Bao",amt:168,cur:"CNY",cat:"식비",d:TODAY,t:"12:41",memo:"",pre:false},
+      {m:"Didi Chuxing",amt:46,cur:"CNY",cat:"교통비",d:TODAY,t:"11:02",memo:"",pre:false},
+      {m:"Lawson 편의점",amt:23,cur:"CNY",cat:"생활용품",d:TODAY,t:"09:20",memo:"",pre:false}];
+  rows.forEach(function(r){r.src="card";r.pm="card";});
+  return rows;
 }
 
 /* ---------- report ---------- */
@@ -1533,13 +1565,15 @@ document.addEventListener("click",function(e){
     splitSheet(S._lastN||3);return;}
   if(e.target.id==="msgreset"){S.msgText="";S.msgEdit=false;splitSheet(S._lastN||3);return;}
 
-  /* 스캔 실패 시나리오 */
+  /* 사진 업로드 → 카메라/갤러리 선택 시트 (accept=image/* + capture 미지정 = OS 기본 선택) */
+  if(e.target.id==="btnupload"){var fi=$("#scanfile");if(fi)fi.click();return;}
+  /* 스캔 실패 시나리오 (데모) */
   if(e.target.id==="btnscanfail"){
     S.scan="loading";render();
     setTimeout(function(){S.scan=["unreadable","empty","error"][Math.floor(Math.random()*3)];render();},1200);
     return;}
   if(e.target.id==="btnmanual"||e.target.id==="addmore"){
-    S.scan="idle";S.draft={m:"",amt:"",cur:localCur(),cat:cats()[0].n,d:TODAY,t:nowHM(),memo:"",pre:false,pm:"cash",src:"manual"};
+    clearScanImg();S.scan="idle";S.draft={m:"",amt:"",cur:localCur(),cat:cats()[0].n,d:TODAY,t:nowHM(),memo:"",pre:false,pm:"cash",src:"manual"};
     S.detail={kind:"new"};render();return;}
 
   /* editor */
@@ -1549,7 +1583,7 @@ document.addEventListener("click",function(e){
     S.draft={m:"",amt:"",cur:proj().cur,cat:"식비",d:TODAY,t:nowHM(),memo:"",pre:false,split:null,pm:"cash",src:"manual"};
     S.detail={kind:"new"};render();return;}
   if(e.target.id==="dback"){S.detail=null;if(S.tab==="add"&&S.draft)S.draft=null;render();return;}
-  if(e.target.id==="sback"){S.tab="add";render();return;}
+  if(e.target.id==="sback"){clearScanImg();S.tab="add";render();return;}
   if((el=e.target.closest("[data-setcat]"))){
     var t=curTx();t.cat=el.dataset.setcat;t.pre=catOf(t.cat).pre;render();return;}
   if((el=e.target.closest("[data-txcur]"))){
@@ -1625,28 +1659,14 @@ document.addEventListener("click",function(e){
     S.nf={name:"",dests:[],adding:false,purpose:"여행",start:"",end:"",bPre:"",bLocal:"",bcur:"KRW",q:""};
     render();toast("프로젝트를 만들었어요<br>＋ 를 눌러 지출을 기록해 보세요");return;}
 
-  /* scan */
-  if(e.target.id==="btnscan"){
-    S.scan="loading";render();
-    setTimeout(function(){
-      var SRC=S.scanSrc||"card";
-      S.scanRows=S.pid==="aarhus"
-        ?[{m:"Netto Trøjborg",amt:214,cur:"DKK",cat:"식비",d:TODAY,t:"18:12",memo:"",pre:false},
-          {m:"Aarhus Cykel",amt:320,cur:"DKK",cat:"생활용품",d:TODAY,t:"15:40",memo:"",pre:false},
-          {m:"Baresso Coffee",amt:48,cur:"DKK",cat:"식비",d:TODAY,t:"10:05",memo:"",pre:false}]
-        :[{m:"Jia Jia Tang Bao",amt:168,cur:"CNY",cat:"식비",d:TODAY,t:"12:41",memo:"",pre:false},
-          {m:"Didi Chuxing",amt:46,cur:"CNY",cat:"교통비",d:TODAY,t:"11:02",memo:"",pre:false},
-          {m:"Lawson 편의점",amt:23,cur:"CNY",cat:"생활용품",d:TODAY,t:"09:20",memo:"",pre:false}];
-      S.scanRows.forEach(function(r){r.src=SRC;r.pm=(SRC==="receipt"?"cash":"card");});
-      if(SRC==="receipt")S.scanRows=[S.scanRows[0]];
-      S.scan="done";render();},1500);
-    return;}
-  if(e.target.id==="btncancel"){S.scan="idle";render();return;}
+  /* scan: 사진을 다시 올리기 (되돌아가 새 사진 선택) */
+  if(e.target.id==="btnscan"){startScan();return;}
+  if(e.target.id==="btncancel"){clearScanImg();S.scan="idle";render();return;}
   if(e.target.id==="btnsave"){
     S.scanRows.forEach(function(r){
       TX.push({id:S.nextId++,p:S.pid,d:r.d,t:r.t,m:r.m,amt:r.amt,cur:r.cur,cat:r.cat,split:null,
         memo:r.memo||"",pre:!!r.pre,src:r.src||"card",keep:!!r.keep,pm:r.pm||"card"});});
-    var cnt=S.scanRows.length;S.scan="idle";S.scanRows=[];S.tab="home";render();
+    var cnt=S.scanRows.length;clearScanImg();S.scan="idle";S.scanRows=[];S.tab="home";render();
     var big=$("#bignum");if(big){big.classList.add("flash");setTimeout(function(){big.classList.remove("flash");},700);}
     toast(cnt+"건을 기록했어요 · 오늘 쓸 수 있는 돈이 바뀌었습니다");return;}
 
@@ -1679,6 +1699,16 @@ document.addEventListener("input",function(e){
   if(e.target.id==="f_amt"&&S.detail){
     var t2=curTx(),v=Number(e.target.value)||0;
     var h=$("#f_hint");if(h)h.textContent=amtHint({amt:v,cur:t2.cur});}
+});
+/* 사진 선택 완료 → 인식 시작 */
+document.addEventListener("change",function(e){
+  if(e.target.id==="scanfile"){
+    var f=e.target.files&&e.target.files[0];
+    if(!f)return;
+    clearScanImg();
+    try{S.scanImg=URL.createObjectURL(f);S.scanFile=f;}catch(_){S.scanImg=null;}
+    startScan();
+  }
 });
 document.addEventListener("keydown",function(e){
   if(e.key===" "||e.key==="Enter"){var el=e.target.closest("[data-pick]");if(el){e.preventDefault();el.click();}}
