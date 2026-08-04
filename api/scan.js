@@ -2,7 +2,8 @@
 // 브라우저가 보낸 사진을 서버에서 Gemini로 인식해 거래 목록(JSON)만 돌려준다.
 // API 키는 서버 환경변수 GEMINI_API_KEY 에만 존재 → 브라우저·소스에 절대 노출되지 않음.
 
-const MODEL = "gemini-2.5-flash";
+// 2026-08 기준 GA 플래시 모델. Vercel 환경변수 GEMINI_MODEL 로 언제든 교체 가능.
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 const CATS = ["식비","교통비","숙박","항공","티켓/입장권","통신비","생활용품",
   "월세","학비·프로그램비","비자·행정","보험","교통패스","보증금"];
 const ALLOW_ORIGIN = "https://hyunihyunn-code.github.io"; // 필요 시 다른 GitHub Pages 주소로 변경
