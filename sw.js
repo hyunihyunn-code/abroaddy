@@ -1,12 +1,12 @@
 /* 어브로디 · service worker — offline-capable app shell.
    Bump CACHE when you change core files. */
-const CACHE = 'abrody-v1';
+const CACHE = 'abrody-v2';
 const CORE = [
   './',
   './index.html',
-  './features.html',
-  './onboarding.html',
-  './assets/theme.css',
+  './s.html',
+  './assets/app.css',
+  './assets/app.js',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',

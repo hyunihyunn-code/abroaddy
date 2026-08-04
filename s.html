@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>어브로디 · 정산 요청</title>
+<meta name="description" content="어브로디로 보낸 1/N 정산 요청이에요. 앱 설치 없이 바로 확인할 수 있어요.">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
+<meta name="theme-color" content="#eef3fd">
+<style>
+:root{--ink:#14224a;--ink-sec:#3a4668;--muted:#7a86ad;--line:#e6ebf6;
+  --grad:linear-gradient(135deg,#2f9fe0 0%,#2f7de0 45%,#7a6ee6 100%)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0}
+body{font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",system-ui,sans-serif;
+  font-feature-settings:"tnum";-webkit-font-smoothing:antialiased;color:var(--ink);min-height:100dvh;
+  background:linear-gradient(180deg,#eef3fd 0%,#e8ecfb 42%,#f3eefb 100%) fixed;
+  display:flex;align-items:center;justify-content:center;
+  padding:calc(24px + env(safe-area-inset-top)) 18px calc(30px + env(safe-area-inset-bottom));position:relative;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:-24% -14% auto -14%;height:78vh;z-index:-1;pointer-events:none;
+  background:radial-gradient(48% 42% at 16% 10%,rgba(47,125,224,.5),transparent 66%),
+    radial-gradient(44% 40% at 84% 4%,rgba(122,110,230,.42),transparent 68%),
+    radial-gradient(46% 40% at 60% 44%,rgba(90,150,240,.46),transparent 70%);filter:blur(54px)}
+.card{width:100%;max-width:412px;background:#fff;border:1px solid var(--line);border-radius:24px;overflow:hidden;
+  box-shadow:0 30px 70px -30px rgba(34,54,120,.5),0 8px 22px -12px rgba(34,54,120,.24)}
+.top{display:flex;align-items:center;gap:8px;padding:13px 18px;background:rgba(47,125,224,.08);border-bottom:1px solid var(--line)}
+.brand{font-size:13px;font-weight:800;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.url{font-size:11.5px;color:var(--muted);margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.body{padding:24px 20px 20px;text-align:center}
+.who{font-size:14px;color:var(--ink-sec);font-weight:600}
+.amt{font-size:38px;font-weight:800;letter-spacing:-.035em;margin:8px 0 3px}
+.sub{font-size:12.5px;color:var(--muted)}
+.list{margin:18px 0 0;border-top:1px solid var(--line);padding-top:12px;text-align:left}
+.li{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--ink-sec);padding:6px 0}
+.li b{font-weight:700;color:var(--ink)}
+.li .krw{color:var(--muted);font-weight:400;font-size:11.5px;margin-left:4px}
+.acc{margin-top:16px;padding:13px 15px;border-radius:14px;background:#f4f8ff;border:1px solid #dce9fc;text-align:left}
+.acc .lb{font-size:11.5px;color:var(--muted)}
+.acc .no{font-size:15px;font-weight:700;letter-spacing:-.01em;margin-top:2px}
+.copy{width:100%;margin-top:12px;padding:14px;border-radius:12px;background:var(--grad);color:#fff;font-weight:700;font-size:15px;border:none;cursor:pointer;box-shadow:0 14px 26px -12px rgba(70,90,200,.5)}
+.copy:active{opacity:.92}
+.foot{margin-top:14px;text-align:center}
+.foot a{font-size:13px;font-weight:700;color:#2f7de0;text-decoration:none}
+.note{font-size:11px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.6}
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,16px);background:var(--ink);color:#fff;
+  padding:11px 17px;border-radius:11px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top"><span class="brand">어브로디</span><span class="url" id="url">abroaddy.app/s/8OJBV</span></div>
+  <div class="body">
+    <div class="who">🇨🇳 상하이 먹방 여행</div>
+    <div class="amt" id="amt">₩13,625</div>
+    <div class="sub">2건을 3명이 나눈 금액</div>
+    <div class="list">
+      <div class="li"><span>Jia Jia Tang Bao</span><span><b>CN¥168</b><span class="krw">₩32,088</span></span></div>
+      <div class="li"><span>Didi 디디추싱</span><span><b>CN¥46</b><span class="krw">₩8,786</span></span></div>
+    </div>
+    <div class="acc">
+      <div class="lb">받는 계좌</div>
+      <div class="no" id="acc">신한 110-123-456 · 김도윤</div>
+    </div>
+    <button class="copy" id="copy">계좌 복사하기</button>
+    <div class="foot"><a href="index.html">나도 이 여행 가계부 써보기 →</a></div>
+    <div class="note">거래일 환율 기준으로 원화 환산했어요 · 정산에 포함된 항목만 보여요<br>이 링크는 30일 뒤 만료됩니다</div>
+  </div>
+</div>
+<div class="toast" id="toast">계좌번호를 복사했어요</div>
+<script>
+document.getElementById("copy").addEventListener("click",function(){
+  var acc=(document.getElementById("acc").textContent.match(/[\d-]{6,}/)||[""])[0];
+  var done=function(){var t=document.getElementById("toast");t.classList.add("show");setTimeout(function(){t.classList.remove("show");},2000);};
+  if(navigator.clipboard&&acc){navigator.clipboard.writeText(acc).then(done).catch(done);}else{done();}
+});
+</script>
+</body>
+</html>
