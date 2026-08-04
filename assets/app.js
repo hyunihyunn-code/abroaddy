@@ -672,6 +672,31 @@ function toastUndo(m){
   clearTimeout(toast._t);
   toast._t=setTimeout(function(){e.classList.remove("show","withbtn");},8000);
 }
+/* 정산 요청 — 네이티브 공유 시트, 실패 시 클립보드 복사 폴백 */
+function shareSettlement(text){
+  var copied=function(){toastUndo("정산 링크를 복사했어요 🔗<br>내 가계부에는 내 몫만 남았습니다");};
+  var shared=function(){toastUndo("정산 요청을 공유했어요 🔗<br>내 가계부에는 내 몫만 남았습니다");};
+  if(navigator.share){
+    navigator.share({title:"어브로디 정산 요청",text:text}).then(shared).catch(function(err){
+      if(err&&err.name==="AbortError"){toastUndo("정산을 준비했어요 🔗<br>내 가계부에는 내 몫만 남았습니다");}
+      else{copyText(text,copied);}
+    });
+  }else{copyText(text,copied);}
+}
+function copyText(text,onDone){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(onDone).catch(function(){legacyCopy(text,onDone);});
+  }else legacyCopy(text,onDone);
+}
+function legacyCopy(text,onDone){
+  try{
+    var ta=document.createElement("textarea");ta.value=text;
+    ta.style.position="fixed";ta.style.top="-1000px";ta.style.opacity="0";
+    document.body.appendChild(ta);ta.focus();ta.select();
+    var ok=document.execCommand("copy");document.body.removeChild(ta);
+    if(ok)onDone();else toast("복사가 안 됐어요 · 메시지를 길게 눌러 복사해 주세요");
+  }catch(_){toast("복사가 안 됐어요 · 메시지를 길게 눌러 복사해 주세요");}
+}
 function revokeSettle(code,isUndo){
   if(!code)return;
   var r=null;
@@ -1577,12 +1602,14 @@ document.addEventListener("click",function(e){
     var sn=+el.dataset.share;
     var picked=Object.keys(S.sel).filter(function(k){return S.sel[k];});
     var sumK=0;
-    picked.forEach(function(id){var t=byId(id);if(t){t.split={n:sn};sumK+=toKRW(t.amt,t.cur);}});
+    picked.forEach(function(id){var t=byId(id);if(t){t.split={n:sn};sumK+=toKRW(t.amt,t.cur);dbUpdateTx(t);}});
     var rec={code:splitCode(),pname:proj().name,pid:S.pid,ids:picked.slice(),n:sn,
              cnt:picked.length,each:sumK/sn,status:"active",d:TODAY};
     SETTLE.push(rec); S._code=null; S.lastSettle=rec;
+    var shareText=S.msgText||(proj().name+" 정산 요청이에요 💸");
+    shareSettlement(shareText);   /* 네이티브 공유 시트 · 실패 시 복사 */
     S.sel={};S.selMode=false;S.msgEdit=false;S.msgText="";closeSheet();render();
-    toastUndo("정산 링크를 복사했어요 🔗<br>내 가계부에는 내 몫만 남았습니다");return;}
+    return;}
   if(e.target.id==="undosettle"){revokeSettle(S.lastSettle&&S.lastSettle.code,true);return;}
   if((el=e.target.closest("[data-revoke]"))){
     var code=el.dataset.revoke;
@@ -1667,7 +1694,7 @@ document.addEventListener("click",function(e){
     S.detail={kind:"new"};render();return;}
 
   /* editor */
-  if((el=e.target.closest("[data-edit]"))){S.detail={kind:"tx",id:+el.dataset.edit};render();return;}
+  if((el=e.target.closest("[data-edit]"))){S.detail={kind:"tx",id:el.dataset.edit};render();return;}
   if((el=e.target.closest("[data-sedit]"))){S.detail={kind:"scan",i:+el.dataset.sedit};render();return;}
   if(e.target.closest("#godirect")){
     S.draft={m:"",amt:"",cur:proj().cur,cat:"식비",d:TODAY,t:nowHM(),memo:"",pre:false,split:null,pm:"cash",src:"manual"};
@@ -1694,7 +1721,7 @@ document.addEventListener("click",function(e){
       var nt={id:null,p:S.pid,d:t4.d,t:t4.t,m:t4.m,amt:t4.amt,cur:t4.cur,cat:t4.cat,split:null,
         memo:t4.memo,pre:t4.pre,pm:t4.pm||"cash",src:t4.src||"manual",keep:!!t4.keep,st:"confirmed"};
       TX.push(nt);
-      dbInsertTx(nt).then(function(id){if(id){nt.id=id;}else{var ix=TX.indexOf(nt);if(ix>-1)TX.splice(ix,1);render();}});
+      dbInsertTx(nt).then(function(id){if(id){nt.id=id;render();}else{var ix=TX.indexOf(nt);if(ix>-1)TX.splice(ix,1);render();}});
       S.draft=null;S.detail=null;S.tab="ledger";S.cal=t4.d.slice(0,7);render();toast("기록했어요");return;}
     if(d.kind==="tx")dbUpdateTx(t4);
     S.detail=null;if(d.kind!=="scan")S.cal=t4.d.slice(0,7);
@@ -1787,7 +1814,7 @@ document.addEventListener("click",function(e){
       var t={id:null,p:S.pid,d:r.d,t:r.t,m:r.m,amt:r.amt,cur:r.cur,cat:r.cat,split:null,
         memo:r.memo||"",pre:!!r.pre,src:r.src||"card",keep:!!r.keep,pm:r.pm||"card",st:"confirmed"};
       TX.push(t);
-      dbInsertTx(t).then(function(id){if(id){t.id=id;}else{var ix=TX.indexOf(t);if(ix>-1)TX.splice(ix,1);render();}});
+      dbInsertTx(t).then(function(id){if(id){t.id=id;render();}else{var ix=TX.indexOf(t);if(ix>-1)TX.splice(ix,1);render();}});
     });
     clearScanImg();S.scan="idle";S.scanRows=[];S.tab="home";render();
     var big=$("#bignum");if(big){big.classList.add("flash");setTimeout(function(){big.classList.remove("flash");},700);}
