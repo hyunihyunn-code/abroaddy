@@ -487,28 +487,103 @@ var S={tab:"home",pid:null,sel:{},selMode:false,disp:"local",
 var $=function(s,r){return (r||document).querySelector(s);};
 var esc=function(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});};
 
-/* ---------- persistence (localStorage) ---------- */
-var STOREKEY="abrody_data_v2", SEENKEY="abrody_seen_v2";
-function stash(){
-  try{localStorage.setItem(STOREKEY,JSON.stringify({
-    P:P,TX:TX,customCats:customCats,BUDGETLOG:BUDGETLOG,SETTLE:SETTLE,RECUR:RECUR,ME:ME,
-    pid:S.pid,nextId:S.nextId}));}catch(_){}
+/* ============================================================
+   Supabase 영속 계층 — 사용자별(RLS) 저장. localStorage 대체.
+   client는 index.html에서 window.__sb 로 주입됨.
+   ============================================================ */
+var SB=window.__sb;
+var USER=null;                 /* 로그인 사용자 */
+var CAT_ID={},CAT_NAME={};     /* 카테고리 이름<->UUID */
+var CITY_ID={},CITY_BY_ID={};  /* 도시 이름<->serial id, id->{ko,flag,country} */
+function srcToDb(s){return s==="card"?"card_capture":(s==="receipt"?"receipt":"manual");}
+function srcFromDb(s){return s==="card_capture"?"card":(s==="receipt"?"receipt":"manual");}
+function sbErr(e,msg){if(e){console.error(msg||"supabase",e);toast((msg||"저장 중 문제가 생겼어요")+" · 다시 시도해 주세요");}return !!e;}
+function stash(){/* 개별 mutation에서 DB에 직접 쓴다 (write-through). no-op 유지 */}
+
+/* 참조 데이터: 카테고리(시스템+내것), 도시 맵 */
+function loadReference(){
+  return Promise.all([
+    SB.from("categories").select("id,name,user_id,icon,is_pre"),
+    SB.from("cities").select("id,name_ko,flag_emoji,country")
+  ]).then(function(r){
+    var cts=r[0].data||[],cities=r[1].data||[];
+    CAT_ID={};CAT_NAME={};customCats=[];
+    cts.forEach(function(c){CAT_ID[c.name]=c.id;CAT_NAME[c.id]=c.name;
+      if(c.user_id)customCats.push({n:c.name,i:c.icon||"⭐",pre:c.is_pre});});
+    CITY_ID={};CITY_BY_ID={};
+    cities.forEach(function(c){if(!(c.name_ko in CITY_ID))CITY_ID[c.name_ko]=c.id;
+      CITY_BY_ID[c.id]={ko:c.name_ko,flag:c.flag_emoji,country:c.country};});
+  });
 }
-function load(){
-  var raw;try{raw=localStorage.getItem(STOREKEY);}catch(_){return;}
-  if(!raw)return;
-  try{var d=JSON.parse(raw);
-    if(d.P)P=d.P; if(d.TX)TX=d.TX; if(d.customCats)customCats=d.customCats;
-    if(d.BUDGETLOG)BUDGETLOG=d.BUDGETLOG; if(d.SETTLE)SETTLE=d.SETTLE;
-    if(d.RECUR)RECUR=d.RECUR; if(d.ME)ME=d.ME;
-    if(d.nextId)S.nextId=d.nextId; if(d.pid&&d.P&&d.P[d.pid])S.pid=d.pid;
-  }catch(_){}
-  if(!P[S.pid])S.pid=Object.keys(P)[0];
+/* 내 데이터 전체 로드 → 인메모리 P/TX/BUDGETLOG 채우기 */
+function loadUserData(){
+  P={};TX=[];BUDGETLOG=[];SETTLE=[];RECUR=[];ME={bank:"",acc:"",holder:""};
+  return Promise.all([
+    SB.from("projects").select("*, project_cities(city_id,currency,sort_order), cash_topups(amount,currency,topped_up_on)").order("created_at"),
+    SB.from("transactions").select("*").order("occurred_on",{ascending:false}),
+    SB.from("budget_log").select("*")
+  ]).then(function(r){
+    (r[0].data||[]).forEach(function(pr){
+      var pcs=(pr.project_cities||[]).slice().sort(function(a,b){return (a.sort_order||0)-(b.sort_order||0);});
+      var cities=pcs.map(function(pc){var m=CITY_BY_ID[pc.city_id]||{};return {ko:m.ko||"",flag:m.flag||"",cur:pc.currency};});
+      if(!cities.length)cities=[{ko:pr.name,flag:"",cur:pr.primary_currency}];
+      var meta=CITY_BY_ID[(pcs[0]||{}).city_id]||{};
+      P[pr.id]={id:pr.id,name:pr.name,purpose:pr.purpose,cur:pr.primary_currency,
+        start:pr.start_date,end:pr.end_date,bPre:+pr.budget_pre_krw,bLocal:+pr.budget_local_krw,
+        cities:cities,city:cities[0].ko,country:meta.country||"",flag:cities[0].flag||meta.flag||"",
+        cash:(pr.cash_topups||[]).map(function(x){return {amt:+x.amount,cur:x.currency,d:x.topped_up_on};}),peers:0};
+    });
+    (r[1].data||[]).forEach(function(t){
+      TX.push({id:t.id,p:t.project_id,d:t.occurred_on,t:t.occurred_at?String(t.occurred_at).slice(0,5):"",
+        m:t.merchant||"",amt:+t.amount,cur:t.currency,cat:CAT_NAME[t.category_id]||"식비",
+        pre:t.is_pre,pm:t.payment_method,split:t.split_count?{n:t.split_count}:null,memo:t.memo||"",
+        src:srcFromDb(t.source),keep:t.keep_receipt,rec:t.recurring_rule_id||null,st:t.status});
+    });
+    (r[2].data||[]).forEach(function(b){BUDGETLOG.push({p:b.project_id,type:b.envelope,amt:+b.delta_krw,d:b.logged_on,memo:b.memo||""});});
+    if(!P[S.pid])S.pid=Object.keys(P)[0]||null;
+  });
 }
-function resetDemo(){
-  try{localStorage.removeItem(STOREKEY);localStorage.removeItem(SEENKEY);}catch(_){}
-  location.reload();
+
+/* ---- write-through helpers (KRW 스냅샷 포함) ---- */
+function txToRow(t){return {project_id:t.p,occurred_on:t.d,occurred_at:t.t||null,merchant:t.m||null,
+  amount:t.amt,currency:t.cur,fx_rate_snapshot:CUR[t.cur].r,krw_amount_snapshot:toKRW(t.amt,t.cur),
+  category_id:CAT_ID[t.cat]||null,is_pre:!!t.pre,payment_method:t.pm||"card",source:srcToDb(t.src||"manual"),
+  keep_receipt:!!t.keep,memo:t.memo||null,status:t.st||"confirmed",split_count:t.split?t.split.n:null};}
+function dbInsertTx(t){return SB.from("transactions").insert(txToRow(t)).select("id").single()
+  .then(function(r){if(sbErr(r.error,"기록 저장 실패"))return null;return r.data.id;});}
+function dbUpdateTx(t){return SB.from("transactions").update(txToRow(t)).eq("id",t.id)
+  .then(function(r){sbErr(r.error,"수정 저장 실패");});}
+function dbDeleteTx(id){return SB.from("transactions").delete().eq("id",id)
+  .then(function(r){sbErr(r.error,"삭제 실패");});}
+function dbInsertProject(p){
+  return SB.from("projects").insert({user_id:USER.id,name:p.name,purpose:p.purpose,
+    primary_currency:p.cur,start_date:p.start,end_date:p.end,budget_pre_krw:p.bPre,budget_local_krw:p.bLocal,
+    is_long_stay:(LONGPURPOSE.indexOf(p.purpose)>-1||(days(p.start,p.end)+1)>30)})
+    .select("id").single().then(function(r){
+      if(sbErr(r.error,"프로젝트 저장 실패"))return null;
+      var pid=r.data.id, rows=(p.cities||[]).map(function(c,i){return {project_id:pid,city_id:CITY_ID[c.ko],currency:c.cur,sort_order:i};}).filter(function(x){return x.city_id;});
+      return SB.from("project_cities").insert(rows).then(function(){return pid;});
+    });
 }
+function dbUpdateProject(p){
+  return SB.from("projects").update({name:p.name,purpose:p.purpose,primary_currency:p.cur,
+    start_date:p.start,end_date:p.end,budget_pre_krw:p.bPre,budget_local_krw:p.bLocal,
+    is_long_stay:(LONGPURPOSE.indexOf(p.purpose)>-1||(days(p.start,p.end)+1)>30)}).eq("id",p.id)
+    .then(function(r){if(sbErr(r.error,"수정 저장 실패"))return;
+      return SB.from("project_cities").delete().eq("project_id",p.id).then(function(){
+        var rows=(p.cities||[]).map(function(c,i){return {project_id:p.id,city_id:CITY_ID[c.ko],currency:c.cur,sort_order:i};}).filter(function(x){return x.city_id;});
+        return SB.from("project_cities").insert(rows);});});
+}
+function dbBudgetLog(pid,type,delta,memo){return SB.from("budget_log").insert(
+  {project_id:pid,envelope:type,delta_krw:delta,memo:memo||null,logged_on:TODAY})
+  .then(function(r){sbErr(r.error,"예산 이력 저장 실패");});}
+function dbCashTopup(pid,amt,cur,d){return SB.from("cash_topups").insert(
+  {project_id:pid,amount:amt,currency:cur,topped_up_on:d}).then(function(r){sbErr(r.error,"환전 기록 저장 실패");});}
+function dbAddCategory(name,icon){return SB.from("categories").insert(
+  {user_id:USER.id,name:name,icon:icon,is_pre:false}).select("id").single()
+  .then(function(r){if(sbErr(r.error,"카테고리 저장 실패"))return null;CAT_ID[name]=r.data.id;CAT_NAME[r.data.id]=name;return r.data.id;});}
+
+function signOut(){SB.auth.signOut().then(function(){location.reload();});}
 function hasProj(){return Object.keys(P).length>0;}
 
 function proj(){return P[S.pid];}
@@ -1207,10 +1282,10 @@ function vMy(){
   '<div class="card"><div style="font-size:14px;font-weight:600;margin-bottom:8px">내 카테고리</div>'+
     '<div class="catrow">'+cats().map(function(c){return '<button style="cursor:default">'+c.i+' '+esc(c.n)+'</button>';}).join("")+
     '<button class="addc" id="addcat2">＋ 직접 추가</button></div></div>'+
-  '<div class="card"><div class="rowbetween"><span><b style="font-size:14px;font-weight:600">모든 데이터 지우기</b>'+
-    '<span class="small" style="display:block;margin-top:3px">프로젝트·기록·정산을 모두 지우고 처음 화면으로 돌아가요</span></span>'+
-    '<button class="minib" id="resetdemo">초기화</button></div></div>'+
-  '<div class="small" style="text-align:center;margin:14px 2px 4px;line-height:1.6">어브로디 · 해외 지출 가계부 프로토타입<br>환율·스캔 결과는 시연용 예시 값입니다</div>'+
+  '<div class="card"><div class="rowbetween"><span><b style="font-size:14px;font-weight:600">계정</b>'+
+    '<span class="small" style="display:block;margin-top:3px">'+esc((USER&&USER.email)||"")+'</span></span>'+
+    '<button class="minib" id="signout">로그아웃</button></div></div>'+
+  '<div class="small" style="text-align:center;margin:14px 2px 4px;line-height:1.6">어브로디 · 해외 지출 가계부 프로토타입<br>내 기록은 Supabase에 사용자별로 안전하게 저장돼요</div>'+
   '<div style="height:8px"></div>';
 }
 
@@ -1443,7 +1518,6 @@ document.addEventListener("click",function(e){
   if(e.target.id==="welstart"){startNewProject();render();return;}
   if((el=e.target.closest("[data-editproj]"))){openEditProject(el.dataset.editproj);return;}
   if(e.target.id==="donego"){S.tab="home";render();return;}
-  if(e.target.id==="resetdemo"){resetDemo();return;}
   if((el=e.target.closest(".tab"))){
     S.detail=null;S.selMode=false;S.sel={};
     S.tab=el.dataset.tab; if(S.tab!=="scan")S.scan="idle";
@@ -1511,7 +1585,7 @@ document.addEventListener("click",function(e){
       cur:tt.cur,cat:tt.cat,day:+tt.d.slice(8,10),pm:tt.pm||"card",on:true});tt.rec=rid;
       toast("매달 "+(+tt.d.slice(8,10))+"일에 자동으로 기록할게요");}
     stash();render();return;}
-  if(e.target.id==="confirmtx"){var tc=curTx();if(tc){tc.st="confirmed";stash();render();toast("확인했어요 · 또래 비교에 반영됩니다");}return;}
+  if(e.target.id==="confirmtx"){var tc=curTx();if(tc){tc.st="confirmed";dbUpdateTx(tc);render();toast("확인했어요 · 또래 비교에 반영됩니다");}return;}
   if((el=e.target.closest("[data-recoff]"))){
     RECUR.forEach(function(r){if(r.id===el.dataset.recoff)r.on=!r.on;});render();return;}
 
@@ -1525,6 +1599,7 @@ document.addEventListener("click",function(e){
     var memo=$("#bg_memo").value.trim()||(d>0?"예산 늘림":"예산 줄임");
     BUDGETLOG.push({p:S.pid,type:S._bgType,amt:d,d:TODAY,memo:memo});
     if(S._bgType==="pre")pj.bPre=newK; else pj.bLocal=newK;
+    dbBudgetLog(S.pid,S._bgType,d,memo);dbUpdateProject(pj);
     closeSheet();render();toast(d>0?"예산을 "+fmt(d,"KRW")+" 늘렸어요":"예산을 "+fmt(-d,"KRW")+" 줄였어요");return;}
   if((el=e.target.closest("[data-bgpct]"))){
     var box=$("#bg_amt"); if(!box)return;
@@ -1540,7 +1615,9 @@ document.addEventListener("click",function(e){
     var cv=Number(rawNum($("#cs_amt").value))||0;
     if(!cv){toast("금액을 입력해 주세요");return;}
     proj().cash=proj().cash||[];
-    proj().cash.push({amt:cv,cur:localCur(),d:$("#cs_d").value||TODAY});
+    var cd=$("#cs_d").value||TODAY;
+    proj().cash.push({amt:cv,cur:localCur(),d:cd});
+    dbCashTopup(S.pid,cv,localCur(),cd);
     closeSheet();render();toast("환전 기록을 더했어요");return;}
 
   /* 계좌 등록 */
@@ -1589,12 +1666,17 @@ document.addEventListener("click",function(e){
     t4.d=$("#f_d").value||TODAY;t4.t=$("#f_t").value||nowHM();t4.memo=$("#f_memo").value.trim();
     if(d.kind==="new"){
       if(!t4.amt){toast("금액을 입력해 주세요");return;}
-      TX.push({id:S.nextId++,p:S.pid,d:t4.d,t:t4.t,m:t4.m,amt:t4.amt,cur:t4.cur,cat:t4.cat,split:null,memo:t4.memo,pre:t4.pre});
+      var nt={id:null,p:S.pid,d:t4.d,t:t4.t,m:t4.m,amt:t4.amt,cur:t4.cur,cat:t4.cat,split:null,
+        memo:t4.memo,pre:t4.pre,pm:t4.pm||"cash",src:t4.src||"manual",keep:!!t4.keep,st:"confirmed"};
+      TX.push(nt);
+      dbInsertTx(nt).then(function(id){if(id){nt.id=id;}else{var ix=TX.indexOf(nt);if(ix>-1)TX.splice(ix,1);render();}});
       S.draft=null;S.detail=null;S.tab="ledger";S.cal=t4.d.slice(0,7);render();toast("기록했어요");return;}
+    if(d.kind==="tx")dbUpdateTx(t4);
     S.detail=null;if(d.kind!=="scan")S.cal=t4.d.slice(0,7);
     render();toast("저장했어요");return;}
   if(e.target.id==="ddel"){
-    var ix=TX.indexOf(byId(S.detail.id));if(ix>-1)TX.splice(ix,1);
+    var did=S.detail.id;dbDeleteTx(did);
+    var ix=TX.indexOf(byId(did));if(ix>-1)TX.splice(ix,1);
     S.detail=null;render();toast("내역을 삭제했어요");return;}
 
   /* custom category */
@@ -1607,6 +1689,7 @@ document.addEventListener("click",function(e){
     if(!nm){toast("이름을 적어주세요");return;}
     var ic=($("[data-cicon][aria-pressed='true']")||{dataset:{cicon:"⭐"}}).dataset.cicon;
     customCats.push({n:nm,i:ic,pre:false});
+    dbAddCategory(nm,ic);
     if(S.detail)curTx().cat=nm;
     closeSheet();render();toast("‘"+nm+"’ 카테고리를 만들었어요");return;}
 
@@ -1639,40 +1722,49 @@ document.addEventListener("click",function(e){
     var sameCur=f.dests.every(function(x){return x.cur===d0.cur;});
     var newPre=toKRW(Number(f.bPre)||0,f.bcur),newLocal=toKRW(Number(f.bLocal),f.bcur);
 
-    if(S.editPid){ /* ── 기존 프로젝트 수정 ── */
+    if(S.editPid){ /* ── 기존 프로젝트 수정 (write-through) ── */
       var ek=S.editPid,pe=P[ek];
-      /* 예산이 바뀌면 변경 이력에 델타로 남김 (PRD F2-3) */
-      if(Math.round(newPre-pe.bPre)!==0)BUDGETLOG.push({p:ek,type:"pre",amt:newPre-pe.bPre,d:TODAY,memo:"프로젝트 수정"});
-      if(Math.round(newLocal-pe.bLocal)!==0)BUDGETLOG.push({p:ek,type:"local",amt:newLocal-pe.bLocal,d:TODAY,memo:"프로젝트 수정"});
+      var dPre=newPre-pe.bPre,dLocal=newLocal-pe.bLocal;
+      if(Math.round(dPre)!==0){BUDGETLOG.push({p:ek,type:"pre",amt:dPre,d:TODAY,memo:"프로젝트 수정"});dbBudgetLog(ek,"pre",dPre,"프로젝트 수정");}
+      if(Math.round(dLocal)!==0){BUDGETLOG.push({p:ek,type:"local",amt:dLocal,d:TODAY,memo:"프로젝트 수정"});dbBudgetLog(ek,"local",dLocal,"프로젝트 수정");}
       pe.name=f.name;pe.purpose=f.purpose;pe.start=f.start;pe.end=f.end;
       pe.city=d0.ko;pe.country=d0.country;pe.flag=d0.flag;pe.cur=sameCur?d0.cur:"KRW";
       pe.cities=f.dests.map(function(x){return {ko:x.ko,flag:x.flag,cur:x.cur};});
       pe.bPre=newPre;pe.bLocal=newLocal;
+      dbUpdateProject(pe);
       S.editPid=null;S.unit=null;S.tab="my";S.nf=freshNF();
       if(S.pid===ek)S.cal=(f.end<TODAY?f.end:(f.start>TODAY?f.start:TODAY)).slice(0,7);
       render();toast("프로젝트를 수정했어요");return;
     }
 
-    var key="p"+Date.now();
-    P[key]={id:key,name:f.name,city:d0.ko,country:d0.country,flag:d0.flag,cur:sameCur?d0.cur:"KRW",
-      cities:f.dests.map(function(x){return {ko:x.ko,flag:x.flag,cur:x.cur};}),cash:[],
-      bPre:newPre,bLocal:newLocal,purpose:f.purpose,start:f.start,end:f.end};
-    /* 최초 예산 설정도 변경 이력의 첫 레코드로 (PRD F2-3) */
-    BUDGETLOG.push({p:key,type:"pre",amt:P[key].bPre,d:TODAY,memo:"최초 설정"});
-    BUDGETLOG.push({p:key,type:"local",amt:P[key].bLocal,d:TODAY,memo:"최초 설정"});
-    S.pid=key;S.tab="done";S.disp="local";S.unit=null;
-    S.cal=(f.end<TODAY?f.end:(f.start>TODAY?f.start:TODAY)).slice(0,7);
-    S.nf=freshNF();
-    render();toast("프로젝트를 만들었어요<br>＋ 를 눌러 지출을 기록해 보세요");return;}
+    /* ── 신규 생성: DB insert로 UUID 받아 인메모리 반영 ── */
+    var np={name:f.name,purpose:f.purpose,cur:sameCur?d0.cur:"KRW",start:f.start,end:f.end,
+      bPre:newPre,bLocal:newLocal,cities:f.dests.map(function(x){return {ko:x.ko,flag:x.flag,cur:x.cur};})};
+    dbInsertProject(np).then(function(pid){
+      if(!pid)return;
+      P[pid]={id:pid,name:np.name,city:d0.ko,country:d0.country,flag:d0.flag,cur:np.cur,
+        cities:np.cities,cash:[],bPre:newPre,bLocal:newLocal,purpose:np.purpose,start:np.start,end:np.end,peers:0};
+      BUDGETLOG.push({p:pid,type:"pre",amt:newPre,d:TODAY,memo:"최초 설정"});
+      BUDGETLOG.push({p:pid,type:"local",amt:newLocal,d:TODAY,memo:"최초 설정"});
+      dbBudgetLog(pid,"pre",newPre,"최초 설정");dbBudgetLog(pid,"local",newLocal,"최초 설정");
+      S.pid=pid;S.tab="done";S.disp="local";S.unit=null;
+      S.cal=(f.end<TODAY?f.end:(f.start>TODAY?f.start:TODAY)).slice(0,7);
+      S.nf=freshNF();render();toast("프로젝트를 만들었어요<br>＋ 를 눌러 지출을 기록해 보세요");
+    });
+    return;}
 
   /* scan: 사진을 다시 올리기 (되돌아가 새 사진 선택) */
   if(e.target.id==="btnscan"){startScan();return;}
   if(e.target.id==="btncancel"){clearScanImg();S.scan="idle";render();return;}
   if(e.target.id==="btnsave"){
+    var cnt=S.scanRows.length;
     S.scanRows.forEach(function(r){
-      TX.push({id:S.nextId++,p:S.pid,d:r.d,t:r.t,m:r.m,amt:r.amt,cur:r.cur,cat:r.cat,split:null,
-        memo:r.memo||"",pre:!!r.pre,src:r.src||"card",keep:!!r.keep,pm:r.pm||"card"});});
-    var cnt=S.scanRows.length;clearScanImg();S.scan="idle";S.scanRows=[];S.tab="home";render();
+      var t={id:null,p:S.pid,d:r.d,t:r.t,m:r.m,amt:r.amt,cur:r.cur,cat:r.cat,split:null,
+        memo:r.memo||"",pre:!!r.pre,src:r.src||"card",keep:!!r.keep,pm:r.pm||"card",st:"confirmed"};
+      TX.push(t);
+      dbInsertTx(t).then(function(id){if(id){t.id=id;}else{var ix=TX.indexOf(t);if(ix>-1)TX.splice(ix,1);render();}});
+    });
+    clearScanImg();S.scan="idle";S.scanRows=[];S.tab="home";render();
     var big=$("#bignum");if(big){big.classList.add("flash");setTimeout(function(){big.classList.remove("flash");},700);}
     toast(cnt+"건을 기록했어요 · 오늘 쓸 수 있는 돈이 바뀌었습니다");return;}
 
@@ -1720,8 +1812,77 @@ document.addEventListener("keydown",function(e){
   if(e.key===" "||e.key==="Enter"){var el=e.target.closest("[data-pick]");if(el){e.preventDefault();el.click();}}
 });
 
+/* ---------- 로그인 화면 (이메일 OTP) ---------- */
+function renderLogin(){
+  var a=S.auth||(S.auth={step:"email",email:"",busy:false});
+  var tb=document.querySelector(".tabbar");if(tb)tb.style.display="none";
+  var body;
+  if(a.step==="email"){
+    body='<div class="field"><label>이메일</label>'+
+      '<input class="inp" id="login_email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" value="'+esc(a.email)+'"></div>'+
+      '<button class="btn" id="loginsend"'+(a.busy?" disabled":"")+'>'+(a.busy?"보내는 중…":"인증 코드 받기")+'</button>'+
+      '<div class="wel-foot">입력한 이메일로 6자리 코드를 보내드려요 · 비밀번호는 없어요</div>';
+  }else{
+    body='<div class="small" style="margin-bottom:12px;text-align:center"><b>'+esc(a.email)+'</b> 로 보낸<br>6자리 코드를 입력해 주세요</div>'+
+      '<div class="field"><input class="inp" id="login_code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" maxlength="6" style="letter-spacing:.35em;font-size:22px;text-align:center;font-weight:700"></div>'+
+      '<button class="btn" id="loginverify"'+(a.busy?" disabled":"")+'>'+(a.busy?"확인 중…":"로그인")+'</button>'+
+      '<button class="btn ghost" id="loginback" style="margin-top:8px">이메일 다시 입력</button>';
+  }
+  $("#view").innerHTML='<div class="wel"><div class="wel-badge">✈️</div>'+
+    '<h1 class="wel-h">어브로디 로그인</h1>'+
+    '<p class="wel-p">이메일로 간편하게 시작해요.<br>내 기록은 나만 볼 수 있게 안전하게 보관됩니다.</p>'+
+    '<div style="text-align:left;max-width:320px;margin:0 auto">'+body+'</div></div>';
+  var f=$(a.step==="email"?"#login_email":"#login_code");if(f)setTimeout(function(){f.focus();},40);
+}
+function sendCode(){
+  var em=(($("#login_email")||{}).value||"").trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){toast("이메일을 확인해 주세요");return;}
+  S.auth.email=em;S.auth.busy=true;renderLogin();
+  SB.auth.signInWithOtp({email:em}).then(function(r){
+    S.auth.busy=false;
+    if(r.error){toast(r.error.message||"코드를 보내지 못했어요");renderLogin();return;}
+    S.auth.step="code";renderLogin();
+  });
+}
+function verifyCode(){
+  var code=(($("#login_code")||{}).value||"").replace(/\s/g,"");
+  if(code.length<6){toast("6자리 코드를 입력해 주세요");return;}
+  S.auth.busy=true;renderLogin();
+  SB.auth.verifyOtp({email:S.auth.email,token:code,type:"email"}).then(function(r){
+    if(r.error){S.auth.busy=false;toast(r.error.message||"코드가 맞지 않아요");S.auth.step="code";renderLogin();return;}
+    USER=r.data.user;afterLogin();
+  });
+}
+function afterLogin(){
+  loadReference().then(loadUserData).then(function(){
+    if(!P[S.pid])S.pid=Object.keys(P)[0]||null;
+    S.editPid=null;S.detail=null;S.unit=null;
+    S.tab=hasProj()?"home":"welcome";
+    render();
+  }).catch(function(e){console.error(e);toast("데이터를 불러오지 못했어요");S.auth={step:"email",email:S.auth?S.auth.email:"",busy:false};renderLogin();});
+}
+/* 로그인 화면 전용 이벤트 */
+document.addEventListener("click",function(e){
+  if(e.target.id==="loginsend"){sendCode();return;}
+  if(e.target.id==="loginverify"){verifyCode();return;}
+  if(e.target.id==="loginback"){S.auth={step:"email",email:S.auth.email,busy:false};renderLogin();return;}
+  if(e.target.id==="signout"){signOut();return;}
+});
+document.addEventListener("keydown",function(e){
+  if(e.key!=="Enter")return;
+  if(e.target.id==="login_email"){e.preventDefault();sendCode();}
+  else if(e.target.id==="login_code"){e.preventDefault();verifyCode();}
+});
+
 /* ---------- init ---------- */
-load();
-if(!P[S.pid])S.pid=Object.keys(P)[0]||null;
-render();
+function initApp(){
+  if(!SB||!SB.auth){$("#view").innerHTML='<div class="wel"><div class="wel-badge">📡</div><h1 class="wel-h">연결에 실패했어요</h1><p class="wel-p">네트워크를 확인하고 새로고침해 주세요.</p></div>';var tb=document.querySelector(".tabbar");if(tb)tb.style.display="none";return;}
+  SB.auth.getSession().then(function(r){
+    var session=r.data&&r.data.session;
+    if(session&&session.user){USER=session.user;afterLogin();}
+    else{S.auth={step:"email",email:"",busy:false};renderLogin();}
+  });
+  SB.auth.onAuthStateChange(function(ev){if(ev==="SIGNED_OUT"){USER=null;}});
+}
+initApp();
 })();

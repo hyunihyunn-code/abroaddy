@@ -41,6 +41,15 @@
     addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
   }
 </script>
+<!-- Supabase 클라이언트 (anon key는 공개용 · 보안은 RLS가 담당) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  window.__sb = window.supabase.createClient(
+    "https://yeqyjfmefihbzczbotul.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllcXlqZm1lZmloYnpjemJvdHVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4Mjk4MzcsImV4cCI6MjEwMTQwNTgzN30.TF8rkwvaXjTp399q84FW9EXplhhzlZIm7axBSTOcU9Q",
+    { auth: { persistSession: true, autoRefreshToken: true } }
+  );
+</script>
 <script src="assets/app.js"></script>
 </body>
 </html>
