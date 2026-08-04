@@ -25,7 +25,9 @@
 -- ============================================================================
 
 create extension if not exists "pgcrypto";
-create extension if not exists "pg_cron"; -- fx_rates 자동 갱신, peer_norms 리프레시용
+-- pg_cron: fx_rates 자동 갱신·peer_norms 리프레시용(스케줄러). 테스트에는 불필요하고
+-- SQL 에디터에서 권한 에러가 날 수 있어 주석 처리. 나중에 대시보드 Database→Extensions에서 켜면 됨.
+-- create extension if not exists "pg_cron";
 
 -- ----------------------------------------------------------------------------
 -- 0. profiles (auth.users 확장)
