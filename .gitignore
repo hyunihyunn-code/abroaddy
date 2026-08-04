@@ -6,3 +6,7 @@ api.md
 .vercel
 .env
 .env.*
+*.jpg
+*.jpeg
+*.png
+!icons/*.png
