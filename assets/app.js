@@ -1812,44 +1812,59 @@ document.addEventListener("keydown",function(e){
   if(e.key===" "||e.key==="Enter"){var el=e.target.closest("[data-pick]");if(el){e.preventDefault();el.click();}}
 });
 
-/* ---------- 로그인 화면 (이메일 OTP) ---------- */
+/* ---------- 로그인 화면 (아이디 / 비밀번호) ----------
+   Supabase는 이메일 기반이라, 아이디를 <아이디>@abroaddy.app 내부 이메일로 매핑.
+   이메일 발송이 없어 전송 제한·링크 문제 없이 즉시 가입/로그인. */
+function uEmail(id){return String(id||"").toLowerCase().replace(/[^a-z0-9._-]/g,"")+"@abroaddy.app";}
 function renderLogin(){
-  var a=S.auth||(S.auth={step:"email",email:"",busy:false});
+  var a=S.auth||(S.auth={mode:"login",busy:false});
   var tb=document.querySelector(".tabbar");if(tb)tb.style.display="none";
-  var body;
-  if(a.step==="email"){
-    body='<div class="field"><label>이메일</label>'+
-      '<input class="inp" id="login_email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" value="'+esc(a.email)+'"></div>'+
-      '<button class="btn" id="loginsend"'+(a.busy?" disabled":"")+'>'+(a.busy?"보내는 중…":"인증 코드 받기")+'</button>'+
-      '<div class="wel-foot">입력한 이메일로 6자리 코드를 보내드려요 · 비밀번호는 없어요</div>';
+  var signup=a.mode==="signup",fields;
+  if(signup){
+    fields='<div class="field"><label>이름</label><input class="inp" id="au_name" value="'+esc(a.name||"")+'" placeholder="예: 김서현"></div>'+
+      '<div class="field"><label>전화번호</label><input class="inp" id="au_phone" inputmode="tel" value="'+esc(a.phone||"")+'" placeholder="010-1234-5678"></div>'+
+      '<div class="field"><label>아이디</label><input class="inp" id="au_id" autocapitalize="off" autocorrect="off" spellcheck="false" value="'+esc(a.id||"")+'" placeholder="영문/숫자 3자 이상"></div>'+
+      '<div class="field"><label>비밀번호</label><input class="inp" id="au_pw" type="password" autocomplete="new-password" placeholder="6자 이상"></div>'+
+      '<button class="btn" id="dosignup"'+(a.busy?" disabled":"")+'>'+(a.busy?"가입 중…":"가입하고 시작하기")+'</button>'+
+      '<button class="btn ghost" id="tologin" style="margin-top:8px">이미 계정이 있어요 · 로그인</button>';
   }else{
-    body='<div class="small" style="margin-bottom:12px;text-align:center"><b>'+esc(a.email)+'</b> 로 보낸<br>6자리 코드를 입력해 주세요</div>'+
-      '<div class="field"><input class="inp" id="login_code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" maxlength="6" style="letter-spacing:.35em;font-size:22px;text-align:center;font-weight:700"></div>'+
-      '<button class="btn" id="loginverify"'+(a.busy?" disabled":"")+'>'+(a.busy?"확인 중…":"로그인")+'</button>'+
-      '<button class="btn ghost" id="loginback" style="margin-top:8px">이메일 다시 입력</button>';
+    fields='<div class="field"><label>아이디</label><input class="inp" id="au_id" autocapitalize="off" autocorrect="off" spellcheck="false" value="'+esc(a.id||"")+'" placeholder="아이디"></div>'+
+      '<div class="field"><label>비밀번호</label><input class="inp" id="au_pw" type="password" autocomplete="current-password" placeholder="비밀번호"></div>'+
+      '<button class="btn" id="dologin"'+(a.busy?" disabled":"")+'>'+(a.busy?"로그인 중…":"로그인")+'</button>'+
+      '<button class="btn ghost" id="tosignup" style="margin-top:8px">처음이신가요? · 회원가입</button>';
   }
   $("#view").innerHTML='<div class="wel"><div class="wel-badge">✈️</div>'+
-    '<h1 class="wel-h">어브로디 로그인</h1>'+
-    '<p class="wel-p">이메일로 간편하게 시작해요.<br>내 기록은 나만 볼 수 있게 안전하게 보관됩니다.</p>'+
-    '<div style="text-align:left;max-width:320px;margin:0 auto">'+body+'</div></div>';
-  var f=$(a.step==="email"?"#login_email":"#login_code");if(f)setTimeout(function(){f.focus();},40);
+    '<h1 class="wel-h">어브로디 '+(signup?"회원가입":"로그인")+'</h1>'+
+    '<p class="wel-p">'+(signup?"아이디·비밀번호로 바로 시작해요.":"아이디와 비밀번호로 로그인하세요.")+'<br>내 기록은 나만 볼 수 있어요.</p>'+
+    '<div style="text-align:left;max-width:320px;margin:0 auto">'+fields+'</div></div>';
+  var f=$(signup?"#au_name":"#au_id");if(f)setTimeout(function(){f.focus();},40);
 }
-function sendCode(){
-  var em=(($("#login_email")||{}).value||"").trim();
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){toast("이메일을 확인해 주세요");return;}
-  S.auth.email=em;S.auth.busy=true;renderLogin();
-  SB.auth.signInWithOtp({email:em}).then(function(r){
-    S.auth.busy=false;
-    if(r.error){toast(r.error.message||"코드를 보내지 못했어요");renderLogin();return;}
-    S.auth.step="code";renderLogin();
+function readAuthFields(){var a=S.auth,g=function(s){return (($(s)||{}).value)||"";};
+  a.name=g("#au_name").trim();a.phone=g("#au_phone").trim();a.id=g("#au_id").trim();a._pw=g("#au_pw");}
+function doSignup(){
+  readAuthFields();var a=S.auth;
+  if(!a.name){toast("이름을 입력해 주세요");return;}
+  if(!/^[A-Za-z0-9._-]{3,20}$/.test(a.id)){toast("아이디는 영문/숫자 3~20자로 해주세요");return;}
+  if((a._pw||"").length<6){toast("비밀번호는 6자 이상이에요");return;}
+  a.busy=true;renderLogin();
+  SB.auth.signUp({email:uEmail(a.id),password:a._pw,options:{data:{name:a.name,phone:a.phone,username:a.id}}}).then(function(r){
+    if(r.error){a.busy=false;toast(/registered|exists/i.test(r.error.message)?"이미 있는 아이디예요":(r.error.message||"가입에 실패했어요"));renderLogin();return;}
+    if(r.data.session){USER=r.data.user;SB.from("profiles").upsert({id:USER.id,nickname:a.name}).then(function(){});afterLogin();return;}
+    /* 세션 미발급(관리자 설정에서 이메일 확인 켜짐) → 바로 로그인 시도 */
+    SB.auth.signInWithPassword({email:uEmail(a.id),password:a._pw}).then(function(r2){
+      a.busy=false;
+      if(r2.error||!r2.data.session){toast("가입은 됐어요 · 로그인해 주세요");a.mode="login";renderLogin();return;}
+      USER=r2.data.user;SB.from("profiles").upsert({id:USER.id,nickname:a.name}).then(function(){});afterLogin();
+    });
   });
 }
-function verifyCode(){
-  var code=(($("#login_code")||{}).value||"").replace(/\s/g,"");
-  if(code.length<6){toast("6자리 코드를 입력해 주세요");return;}
-  S.auth.busy=true;renderLogin();
-  SB.auth.verifyOtp({email:S.auth.email,token:code,type:"email"}).then(function(r){
-    if(r.error){S.auth.busy=false;toast(r.error.message||"코드가 맞지 않아요");S.auth.step="code";renderLogin();return;}
+function doLogin(){
+  readAuthFields();var a=S.auth;
+  if(!a.id||!a._pw){toast("아이디와 비밀번호를 입력해 주세요");return;}
+  a.busy=true;renderLogin();
+  SB.auth.signInWithPassword({email:uEmail(a.id),password:a._pw}).then(function(r){
+    a.busy=false;
+    if(r.error||!r.data.session){toast("아이디 또는 비밀번호가 맞지 않아요");renderLogin();return;}
     USER=r.data.user;afterLogin();
   });
 }
@@ -1859,19 +1874,20 @@ function afterLogin(){
     S.editPid=null;S.detail=null;S.unit=null;
     S.tab=hasProj()?"home":"welcome";
     render();
-  }).catch(function(e){console.error(e);toast("데이터를 불러오지 못했어요");S.auth={step:"email",email:S.auth?S.auth.email:"",busy:false};renderLogin();});
+  }).catch(function(e){console.error(e);toast("데이터를 불러오지 못했어요");S.auth={mode:"login",busy:false};renderLogin();});
 }
 /* 로그인 화면 전용 이벤트 */
 document.addEventListener("click",function(e){
-  if(e.target.id==="loginsend"){sendCode();return;}
-  if(e.target.id==="loginverify"){verifyCode();return;}
-  if(e.target.id==="loginback"){S.auth={step:"email",email:S.auth.email,busy:false};renderLogin();return;}
+  if(e.target.id==="dologin"){doLogin();return;}
+  if(e.target.id==="dosignup"){doSignup();return;}
+  if(e.target.id==="tosignup"){readAuthFields();S.auth.mode="signup";S.auth.busy=false;renderLogin();return;}
+  if(e.target.id==="tologin"){readAuthFields();S.auth.mode="login";S.auth.busy=false;renderLogin();return;}
   if(e.target.id==="signout"){signOut();return;}
 });
 document.addEventListener("keydown",function(e){
   if(e.key!=="Enter")return;
-  if(e.target.id==="login_email"){e.preventDefault();sendCode();}
-  else if(e.target.id==="login_code"){e.preventDefault();verifyCode();}
+  if(["au_id","au_pw","au_name","au_phone"].indexOf(e.target.id)>-1){e.preventDefault();
+    (S.auth&&S.auth.mode==="signup")?doSignup():doLogin();}
 });
 
 /* ---------- init ---------- */
@@ -1880,7 +1896,7 @@ function initApp(){
   SB.auth.getSession().then(function(r){
     var session=r.data&&r.data.session;
     if(session&&session.user){USER=session.user;afterLogin();}
-    else{S.auth={step:"email",email:"",busy:false};renderLogin();}
+    else{S.auth={mode:"login",busy:false};renderLogin();}
   });
   SB.auth.onAuthStateChange(function(ev){if(ev==="SIGNED_OUT"){USER=null;}});
 }
