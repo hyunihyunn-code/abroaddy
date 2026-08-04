@@ -559,9 +559,9 @@ function spentThisMonth(){
               .reduce(function(s,t){return s+mineK(t);},0);
 }
 
-function unitOf(){ /* "month" | "day" */
-  if(S.unit)return S.unit;
-  return (days(proj().start,proj().end)+1)>30 ? "month" : "day";
+function unitOf(){ /* "day" | "total" — 모든 프로젝트 공통 */
+  if(S.unit==="day"||S.unit==="total")return S.unit;
+  return isLong()?"total":"day";   /* 기본값: 장기=전체, 단기=일 */
 }
 function budgetInfo(){
   var p=proj(),sp=spentLocal(),left=p.bLocal-sp;
@@ -645,13 +645,13 @@ function vHome(){
   var dep=spentDep(), u=unitOf(), multi=isMulti();
   var head, big, sub, gauge, legend;
 
-  if(u==="month"){
-    head="이번 달 쓸 수 있는 돈";
-    big =mainOnly(Math.max(0,b.future?b.monthBudget:b.mLeft));
+  if(u==="total"){
+    head=b.future?"전체 기간 쓸 수 있는 돈":"남은 예산";
+    big =mainOnly(Math.max(0,b.left));
     sub = b.future
-      ? "출발까지 "+days(TODAY,p.start)+"일 · 예산을 "+b.totalMonths+"개월로 나눈 금액"
-      : (+TODAY.slice(5,7))+"월 · 남은 "+b.dayLeftInMonth+"일 · 하루 평균 "+mainOnly(Math.max(0,b.mLeft)/b.dayLeftInMonth);
-    gauge=b.mPct; legend='<span>이번 달 '+mainOnly(b.mSpent)+'</span><span>이번 달 예산 '+mainOnly(b.monthBudget)+'</span>';
+      ? "출발까지 "+days(TODAY,p.start)+"일 · 현지 예산 전체 "+mainOnly(p.bLocal)
+      : "전체 "+b.total+"일 중 "+b.elapsed+"일차 · 하루 평균 "+mainOnly(Math.max(0,b.perDay));
+    gauge=b.pct; legend='<span>쓴 돈 '+mainOnly(b.sp)+'</span><span>현지 예산 '+mainOnly(p.bLocal)+'</span>';
   }else{
     head=b.future?"하루에 쓸 수 있는 돈":"오늘 쓸 수 있는 돈";
     big =mainOnly(Math.max(0,b.perDay));
@@ -661,11 +661,9 @@ function vHome(){
     gauge=b.pct; legend='<span>쓴 돈 '+mainOnly(b.sp)+'</span><span>현지 예산 '+mainOnly(p.bLocal)+'</span>';
   }
 
-  var longStay=(days(p.start,p.end)+1)>30;
-  var unitTog = longStay
-    ? '<span class="unittog"><button data-unit="day" aria-pressed="'+(u==="day")+'">일</button>'+
-      '<button data-unit="month" aria-pressed="'+(u==="month")+'">월</button></span>'
-    : '';
+  /* 일/전체 토글 — 장기·단기 모두 노출 (통일) */
+  var unitTog = '<span class="unittog"><button data-unit="day" aria-pressed="'+(u==="day")+'">일</button>'+
+      '<button data-unit="total" aria-pressed="'+(u==="total")+'">전체</button></span>';
   var toggle = multi
     ? '<span class="curtog"><button aria-pressed="true">KRW</button></span>'
     : '<span class="curtog"><button data-disp="local" aria-pressed="'+(S.disp==="local")+'">'+p.cur+'</button>'+
@@ -679,13 +677,10 @@ function vHome(){
     '<div class="sub2">'+sub+'</div>'+
     '<div class="bar"><i class="'+(b.over?"over":"")+'" style="width:'+gauge.toFixed(1)+'%"></i></div>'+
     '<div class="legend">'+legend+'</div>'+
-    (u==="month"&&!b.future
-      ? '<div class="small" style="margin-top:7px">전체 '+b.totalMonths+'개월 중 '+b.monthNo+'개월차 · 남은 예산 '+mainOnly(b.left)+'</div>'
-      : '')+
-    (b.future?'<div class="pace">출발일이 되면 <b>'+(u==="month"?"이번 달":"오늘")+' 쓸 수 있는 돈</b>으로 다시 계산해 드릴게요.</div>'
+    (b.future?'<div class="pace">출발일이 되면 <b>'+(u==="total"?"남은 예산":"오늘 쓸 수 있는 돈")+'</b>으로 다시 계산해 드릴게요.</div>'
       :'<div class="pace'+(good?"":" bad")+'">'+(good
-        ?"이 페이스면 마지막 "+(u==="month"?"달":"날")+"에 <b>"+mainOnly(p.bLocal-b.landing)+"</b>이 남습니다."
-        :"이 페이스면 마지막 "+(u==="month"?"달":"날")+"에 <b>"+mainOnly(b.landing-p.bLocal)+"</b>이 모자랍니다.")+'</div>')+
+        ?"이 페이스면 마지막 날에 <b>"+mainOnly(p.bLocal-b.landing)+"</b>이 남습니다."
+        :"이 페이스면 마지막 날에 <b>"+mainOnly(b.landing-p.bLocal)+"</b>이 모자랍니다.")+'</div>')+
   '</div>'+
   '<div class="envel">'+
     '<div class="e"><div class="t">✈️ 사전 예약</div><div class="v">'+fmt(pre,"KRW")+'</div>'+
@@ -857,8 +852,27 @@ function amtHint(t){
 }
 
 /* ---------- new project ---------- */
+function freshNF(){return {name:"",dests:[],adding:false,purpose:"여행",start:"",end:"",bPre:"",bLocal:"",bcur:"KRW",q:""};}
+function startNewProject(){S.editPid=null;S.nf=freshNF();S.tab="newproj";}
+/* MY에서 기존 프로젝트를 수정 — 생성 폼을 값 채워서 재사용 */
+function openEditProject(k){
+  var p=P[k],bcur=(CUR[p.cur]?p.cur:"KRW");
+  S.editPid=k;
+  S.nf={
+    name:p.name,
+    dests:(p.cities||[{ko:p.city,flag:p.flag,cur:p.cur}]).map(function(c){
+      var full=CITIES.filter(function(x){return x.ko===c.ko;})[0];
+      return full||{ko:c.ko,en:"",country:p.country||"",flag:c.flag,cur:c.cur,al:""};
+    }),
+    adding:false,purpose:p.purpose,start:p.start,end:p.end,bcur:bcur,
+    bPre:String(Math.round(fromKRW(p.bPre,bcur))),
+    bLocal:String(Math.round(fromKRW(p.bLocal,bcur))),
+    q:""
+  };
+  S.tab="newproj";render();
+}
 function vNewProj(){
-  var f=S.nf;
+  var f=S.nf,editing=!!S.editPid;
   var q=f.q.trim().toLowerCase();
   var hits=q?CITIES.filter(function(c){
     return c.ko.indexOf(f.q.trim())===0||c.en.toLowerCase().indexOf(q)===0||c.country.indexOf(f.q.trim())===0;
@@ -866,7 +880,7 @@ function vNewProj(){
   var d=(f.start&&f.end)?Math.max(1,days(f.start,f.end)+1):0;
   var bc=CUR[f.bcur];
   var per=(d&&f.bLocal)?Number(f.bLocal)/d:0;
-  return '<div class="hd"><button class="backbtn" id="nback">‹ 뒤로</button><span class="sub">새 프로젝트</span></div>'+
+  return '<div class="hd"><button class="backbtn" id="nback">‹ 뒤로</button><span class="sub">'+(editing?"프로젝트 수정":"새 프로젝트")+'</span></div>'+
   '<div class="card">'+
     '<div class="field" style="margin-bottom:13px"><label>어디로 가시나요? 🤔✈️</label>'+
       (f.dests.length
@@ -910,8 +924,8 @@ function vNewProj(){
     '<div class="tip" id="n_tip"><span class="e">🧮</span><p>'+budgetHint()+'</p></div>'+
     '<div id="n_auto">'+autoBudgetBox()+'</div>'+
   '</div>'+
-  '<button class="btn" id="ncreate" style="margin-top:12px">프로젝트 만들기</button>'+
-  '<div class="small" style="text-align:center;margin-top:10px">만들고 나서도 예산과 기간은 바꿀 수 있어요</div>'+
+  '<button class="btn" id="ncreate" style="margin-top:12px">'+(editing?"저장하기":"프로젝트 만들기")+'</button>'+
+  '<div class="small" style="text-align:center;margin-top:10px">'+(editing?"일정·목적지·예산을 바꿀 수 있어요 · 기록은 그대로 남아요":"만들고 나서도 예산과 기간은 바꿀 수 있어요")+'</div>'+
   '<div style="height:20px"></div>';
 }
 
@@ -1165,9 +1179,10 @@ function vMy(){
   '<div class="card"><div style="font-size:14px;font-weight:600;margin-bottom:4px">내 프로젝트</div>'+
     Object.keys(P).map(function(k){
       var q=P[k],n=TX.filter(function(t){return t.p===k;}).length;
-      return '<button class="setrow" data-p="'+k+'" data-goto="home"><span>'+q.flag+' '+esc(q.name)+
-        '<span class="small" style="display:block;margin-top:2px">'+cityLabel(q)+' · '+period(q)+'</span></span>'+
-        '<span class="sub">'+n+'건 ›</span></button>';}).join("")+
+      return '<div class="setrow" style="gap:10px">'+
+        '<button data-p="'+k+'" data-goto="home" style="flex:1;min-width:0;text-align:left;background:none">'+q.flag+' '+esc(q.name)+
+        '<span class="small" style="display:block;margin-top:2px">'+cityLabel(q)+' · '+period(q)+' · '+n+'건</span></button>'+
+        '<button class="minib" data-editproj="'+k+'">수정</button></div>';}).join("")+
     '<button class="btn ghost" data-go="newproj" style="margin-top:12px">＋ 새 프로젝트 만들기</button></div>'+
   '<div class="card"><div style="font-size:14px;font-weight:600;margin-bottom:8px">정산 계좌</div>'+
     (ME.acc
@@ -1425,7 +1440,8 @@ function addCatSheet(){
 document.addEventListener("click",function(e){
   var el;
   /* onboarding */
-  if(e.target.id==="welstart"){S.tab="newproj";render();return;}
+  if(e.target.id==="welstart"){startNewProject();render();return;}
+  if((el=e.target.closest("[data-editproj]"))){openEditProject(el.dataset.editproj);return;}
   if(e.target.id==="donego"){S.tab="home";render();return;}
   if(e.target.id==="resetdemo"){resetDemo();return;}
   if((el=e.target.closest(".tab"))){
@@ -1435,12 +1451,13 @@ document.addEventListener("click",function(e){
   if((el=e.target.closest(".feat"))){
     S.focusF=el.dataset.f;S.detail=null;S.selMode=false;S.sel={};S.tab=el.dataset.go;S.scan="idle";render();return;}
   if((el=e.target.closest("[data-go]"))&&!el.classList.contains("feat")){
+    if(el.dataset.go==="newproj"){closeSheet();startNewProject();render();return;}
     if(el.dataset.src)S.scanSrc=el.dataset.src; else if(el.dataset.go==="scan")S.scanSrc="card";
     closeSheet();S.detail=null;S.tab=el.dataset.go;if(S.tab==="scan")S.scan="idle";render();return;}
 
   if(e.target.closest("#wsopen")){openSheet(wsSheet());return;}
   if((el=e.target.closest("[data-p]"))){
-    S.pid=el.dataset.p;S.sel={};S.selMode=false;S.scan="idle";S.disp="local";
+    S.pid=el.dataset.p;S.sel={};S.selMode=false;S.scan="idle";S.disp="local";S.unit=null;
     S.cal=(P[S.pid].end<TODAY?P[S.pid].end:TODAY).slice(0,7);
     if(el.dataset.goto)S.tab=el.dataset.goto;
     closeSheet();render();return;}
@@ -1594,7 +1611,7 @@ document.addEventListener("click",function(e){
     closeSheet();render();toast("‘"+nm+"’ 카테고리를 만들었어요");return;}
 
   /* new project */
-  if(e.target.id==="nback"){S.tab="home";render();return;}
+  if(e.target.id==="nback"){var toMy=!!S.editPid;S.editPid=null;S.tab=toMy?"my":"home";render();return;}
   if((el=e.target.closest("[data-dest]"))){
     saveNF();var c=CITIES[+el.dataset.dest];
     if(!S.nf.dests.some(function(x){return x.ko===c.ko;}))S.nf.dests.push(c);
@@ -1618,19 +1635,34 @@ document.addEventListener("click",function(e){
     if(!f.start||!f.end){toast("기간을 선택해 주세요");return;}
     if(days(f.start,f.end)<0){toast("종료일이 시작일보다 빠릅니다");return;}
     if(!Number(f.bLocal)){toast("현지 지출 예산을 입력해 주세요");return;}
-    var key="p"+Date.now();
     var d0=f.dests[0];
     var sameCur=f.dests.every(function(x){return x.cur===d0.cur;});
+    var newPre=toKRW(Number(f.bPre)||0,f.bcur),newLocal=toKRW(Number(f.bLocal),f.bcur);
+
+    if(S.editPid){ /* ── 기존 프로젝트 수정 ── */
+      var ek=S.editPid,pe=P[ek];
+      /* 예산이 바뀌면 변경 이력에 델타로 남김 (PRD F2-3) */
+      if(Math.round(newPre-pe.bPre)!==0)BUDGETLOG.push({p:ek,type:"pre",amt:newPre-pe.bPre,d:TODAY,memo:"프로젝트 수정"});
+      if(Math.round(newLocal-pe.bLocal)!==0)BUDGETLOG.push({p:ek,type:"local",amt:newLocal-pe.bLocal,d:TODAY,memo:"프로젝트 수정"});
+      pe.name=f.name;pe.purpose=f.purpose;pe.start=f.start;pe.end=f.end;
+      pe.city=d0.ko;pe.country=d0.country;pe.flag=d0.flag;pe.cur=sameCur?d0.cur:"KRW";
+      pe.cities=f.dests.map(function(x){return {ko:x.ko,flag:x.flag,cur:x.cur};});
+      pe.bPre=newPre;pe.bLocal=newLocal;
+      S.editPid=null;S.unit=null;S.tab="my";S.nf=freshNF();
+      if(S.pid===ek)S.cal=(f.end<TODAY?f.end:(f.start>TODAY?f.start:TODAY)).slice(0,7);
+      render();toast("프로젝트를 수정했어요");return;
+    }
+
+    var key="p"+Date.now();
     P[key]={id:key,name:f.name,city:d0.ko,country:d0.country,flag:d0.flag,cur:sameCur?d0.cur:"KRW",
       cities:f.dests.map(function(x){return {ko:x.ko,flag:x.flag,cur:x.cur};}),cash:[],
-      bPre:toKRW(Number(f.bPre)||0,f.bcur),bLocal:toKRW(Number(f.bLocal),f.bcur),purpose:f.purpose,
-      start:f.start,end:f.end};
+      bPre:newPre,bLocal:newLocal,purpose:f.purpose,start:f.start,end:f.end};
     /* 최초 예산 설정도 변경 이력의 첫 레코드로 (PRD F2-3) */
     BUDGETLOG.push({p:key,type:"pre",amt:P[key].bPre,d:TODAY,memo:"최초 설정"});
     BUDGETLOG.push({p:key,type:"local",amt:P[key].bLocal,d:TODAY,memo:"최초 설정"});
-    S.pid=key;S.tab="done";S.disp="local";
+    S.pid=key;S.tab="done";S.disp="local";S.unit=null;
     S.cal=(f.end<TODAY?f.end:(f.start>TODAY?f.start:TODAY)).slice(0,7);
-    S.nf={name:"",dests:[],adding:false,purpose:"여행",start:"",end:"",bPre:"",bLocal:"",bcur:"KRW",q:""};
+    S.nf=freshNF();
     render();toast("프로젝트를 만들었어요<br>＋ 를 눌러 지출을 기록해 보세요");return;}
 
   /* scan: 사진을 다시 올리기 (되돌아가 새 사진 선택) */
