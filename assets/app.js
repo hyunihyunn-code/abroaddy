@@ -729,17 +729,35 @@ function topbar(){
 }
 /* 도움말 — 옆으로 넘기는 주요 기능 큐레이션 */
 function helpSheet(){
+  var row=function(ic,m,a){return '<div class="hprow"><span class="hpic">'+ic+'</span><span class="hpm">'+m+'</span><b>'+a+'</b></div>';};
   var slides=[
-    {e:"📷",t:"캡처 한 장이면 끝",d:"영수증·카드내역·은행앱 화면을 올리면 여러 건을 한 번에 정리해요. 하단 ＋ → ‘영수증·카드내역 스캔’."},
-    {e:"🧮",t:"오늘 · 전체 쓸 수 있는 돈",d:"항공·숙소 같은 사전 예약은 빼고 현지에서 쓸 돈만 계산해요. 홈 상단 [일][전체]로 전환하세요."},
-    {e:"✈️",t:"사전 예약 · 현지 지출 분리",d:"두 봉투로 나눠 항공권 결제일에도 하루 예산이 흔들리지 않아요. 예산은 봉투의 [수정]에서 바꿔요."},
-    {e:"💸",t:"1/N은 링크로",d:"가계부 우측 위 ‘1/N 정산하기’ → 여러 건을 골라 나누면, 내 가계부엔 내 몫만 남아요."},
-    {e:"✏️",t:"일정이 바뀌면 수정",d:"MY → 내 프로젝트 [수정]에서 기간·목적지·예산을 언제든 바꿀 수 있어요. 기록은 그대로 남아요."},
-    {e:"🔒",t:"내 기록은 나만",d:"로그인하면 기록이 안전하게 저장되고, 다른 사람 데이터와 절대 섞이지 않아요."}
+    {t:"캡처 한 장이면 끝",d:"영수증·카드내역·은행앱 화면을 올리면 여러 건을 한 번에 인식해요. 하단 ＋ → ‘영수증·카드내역 스캔’.",
+     shot:'<div class="hpcard"><div class="hptt">✨ 3건을 찾았어요</div>'+row("🍜","Netto Trøjborg","kr214")+row("🚌","Didi 디디추싱","CN¥46")+row("🛒","Lawson 편의점","¥230")+'</div>'},
+    {t:"모든 통화, 원화로 한눈에",d:"79개 통화를 결제한 그대로 저장하고, 거래일 환율로 원화까지 환산해 보여줘요. 다국가 여행도 합계가 딱 맞아요.",
+     shot:'<div class="hpcard"><div class="hprow"><span class="hpic">🍜</span><span class="hpm">이치란 라멘</span><span style="text-align:right"><b>¥1,180</b><span class="hpsub">≈ ₩10,900</span></span></div>'+
+       '<div class="hptog"><span class="on">JPY</span><span>KRW</span></div></div>'},
+    {t:"예산 세우고, 남은 돈 실시간",d:"사전예약(항공·숙소)과 현지 지출을 나눠, 오늘·전체 쓸 수 있는 돈을 계속 계산해요.",
+     shot:'<div class="hpcard"><div class="hptt2">오늘 쓸 수 있는 돈</div><div class="hpbig">¥10,870</div>'+
+       '<div class="hpbarline"><i style="width:38%"></i></div>'+
+       '<div class="hpenv"><div><span>✈️ 사전예약</span><b>₩1.18M</b></div><div><span>🧾 현지</span><b>₩1.10M</b></div></div></div>'},
+    {t:"1/N 정산은 링크로",d:"여러 건을 골라 나누면 내 가계부엔 내 몫만 남고, 링크·공유로 바로 보낼 수 있어요.",
+     shot:'<div class="hpcard hpc-center"><div class="hpsub2">2건을 3명이 나눈 금액</div><div class="hpbig">₩13,625</div>'+
+       '<div class="hpbtn">🔗 링크로 정산 요청 보내기</div></div>'},
+    {t:"또래와 비교 리포트",d:"같은 도시·목적으로 다녀온 사람이 5명 모이면, 항목별로 나 vs 또래를 비교해 드려요.",
+     shot:'<div class="hpcard"><div class="hptt">오사카 다녀온 34명과 비교</div>'+
+       '<div class="hppair"><span class="lb">나</span><span class="tr"><i class="me" style="width:60%"></i></span><span class="vv">₩48,000</span></div>'+
+       '<div class="hppair"><span class="lb">또래</span><span class="tr"><i class="avg" style="width:86%"></i></span><span class="vv">₩67,000</span></div>'+
+       '<div class="hpless">식비 · 또래보다 28% 적게 씀</div></div>'},
+    {t:"여행마다 프로젝트로",d:"목적지·목적·기간·예산으로 프로젝트를 만들고, 일정이 바뀌면 MY에서 언제든 수정해요. 기록은 그대로예요.",
+     shot:'<div class="hpcard"><div class="hptt2">어디로 가시나요? 🤔✈️</div>'+
+       '<div class="hpchips"><span class="hpchip on">🇯🇵 오사카</span><span class="hpchip">🎓 교환학생</span></div>'+
+       '<div class="hpchips" style="margin-top:6px"><span class="hpchip">9.10 – 12.20</span><span class="hpchip">✏️ 수정 가능</span></div></div>'},
+    {t:"내 기록은 나만",d:"아이디로 로그인하면 내 기록만 안전하게 저장되고, 다른 사람 데이터와 절대 섞이지 않아요.",
+     shot:'<div class="hpcard hpc-center"><div class="hplock">🔒</div><div class="hptt" style="margin:0">아이디 로그인 · 내 데이터만</div><div class="hpsub2" style="margin-top:3px">사용자별로 분리되어 안전하게 보관</div></div>'}
   ];
   return '<h3>어브로디 사용법</h3><div class="small" style="margin-bottom:12px">옆으로 넘겨보세요 →</div>'+
     '<div class="helpslides" id="helpslides">'+
-      slides.map(function(s){return '<div class="helpslide"><div class="he">'+s.e+'</div><b>'+s.t+'</b><p>'+s.d+'</p></div>';}).join("")+
+      slides.map(function(s){return '<div class="helpslide"><div class="hpshot">'+s.shot+'</div><b>'+s.t+'</b><p>'+s.d+'</p></div>';}).join("")+
     '</div>'+
     '<div class="helpdots" id="helpdots">'+slides.map(function(_,i){return '<i'+(i===0?' class="on"':'')+'></i>';}).join("")+'</div>'+
     '<button class="btn ghost" id="btnclose" style="margin-top:14px">닫기</button>';
