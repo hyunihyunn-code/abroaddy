@@ -10,3 +10,4 @@ api.md
 *.jpeg
 *.png
 !icons/*.png
+_canvas.html
