@@ -426,6 +426,8 @@ input[type=date].inp,input[type=time].inp{-webkit-appearance:none;appearance:non
 .wel-badge{width:70px;height:70px;border-radius:22px;margin:10px auto 20px;display:grid;place-items:center;
   font-size:32px;color:#fff;background:var(--grad-accent);box-shadow:0 18px 34px -12px rgba(70,90,200,.55)}
 .wel-badge.ok{background:linear-gradient(150deg,#e7f6ec,#d9f0e1);color:inherit;box-shadow:0 14px 28px -14px rgba(31,138,91,.4)}
+.wel-logo{display:block;width:82px;height:82px;border-radius:23px;margin:10px auto 20px;
+  box-shadow:0 18px 34px -12px rgba(70,90,200,.5)}
 .wel-h{font-size:25px;font-weight:800;letter-spacing:-.035em;line-height:1.32;margin:0 0 10px;color:var(--ink)}
 .wel-p{font-size:13px;color:var(--ink-sec);line-height:1.62;margin:0 0 22px}
 .wel-list{text-align:left;margin-bottom:22px}

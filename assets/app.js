@@ -1382,7 +1382,7 @@ function vMy(){
 
 /* ---------- onboarding: welcome · done ---------- */
 function vWelcome(){
-  return '<div class="wel"><div class="wel-badge">✈️</div>'+
+  return '<div class="wel"><img class="wel-logo" src="icons/icon-192.png" alt="어브로디" width="82" height="82">'+
     '<h1 class="wel-h">해외에서 쓴 돈,<br>한 번에 정리돼요</h1>'+
     '<p class="wel-p">여행이든 교환학생이든, 떠나기 전부터 돌아올 때까지<br>얼마 남았는지 알려드릴게요.</p>'+
     '<div class="wel-list">'+
@@ -1947,7 +1947,7 @@ function renderLogin(){
       '<button class="btn" id="dologin"'+(a.busy?" disabled":"")+'>'+(a.busy?"로그인 중…":"로그인")+'</button>'+
       '<button class="btn ghost" id="tosignup" style="margin-top:8px">처음이신가요? · 회원가입</button>';
   }
-  $("#view").innerHTML='<div class="wel"><div class="wel-badge">✈️</div>'+
+  $("#view").innerHTML='<div class="wel"><img class="wel-logo" src="icons/icon-192.png" alt="어브로디" width="82" height="82">'+
     '<h1 class="wel-h">어브로디 '+(signup?"회원가입":"로그인")+'</h1>'+
     '<p class="wel-p">'+(signup?"아이디·비밀번호로 바로 시작해요.":"아이디와 비밀번호로 로그인하세요.")+'<br>내 기록은 나만 볼 수 있어요.</p>'+
     '<div style="text-align:left;max-width:320px;margin:0 auto">'+fields+'</div></div>';
