@@ -812,25 +812,32 @@ function helpSheet(){
     '<button class="btn ghost" id="btnclose" style="margin-top:14px">닫기</button>';
 }
 
-/* B-2: 최초 실행 온보딩 — 스와이프 카드, 스킵 가능, MY에서 다시보기 */
+/* B-2 온보딩 + F-1: 온보딩 화면 한/영 토글 (발표용 · 이 화면만 번역) */
+var OB_SLIDES=[
+  {ko:{t:"여행마다 프로젝트 하나",d:"목적지·기간·예산으로 프로젝트를 만들면 떠나기 전부터 돌아올 때까지 한 곳에서 관리돼요."},
+   en:{t:"One project per trip",d:"Create a project with destination, dates and budget — everything from before you leave to after you return, in one place."},
+   shot:'<div class="hpcard"><div class="hptt2">어디로 가시나요? 🤔✈️</div><div class="hpchips"><span class="hpchip on">🇯🇵 오사카</span><span class="hpchip">🎓 교환학생</span></div><div class="hpchips" style="margin-top:6px"><span class="hpchip">9.10 – 12.20</span><span class="hpchip">✏️ 수정 가능</span></div></div>'},
+  {ko:{t:"나라·목적만 고르면 끝",d:"통화가 자동으로 맞춰지고, 같은 도시·목적으로 다녀온 또래 평균으로 예산까지 제안해요."},
+   en:{t:"Just pick a country & purpose",d:"Currency is set automatically, and we suggest a budget from peers who took the same kind of trip."},
+   shot:'<div class="hpcard"><div class="hptt2">나라와 목적을 고르면</div><div class="hpchips"><span class="hpchip on">🇯🇵 일본 · JPY</span></div><div class="hpchips" style="margin-top:6px"><span class="hpchip">🧳 여행</span><span class="hpchip">💼 출장</span><span class="hpchip">🎓 교환학생</span></div></div>'},
+  {ko:{t:"사전예약과 현지 지출, 따로",d:"항공·숙소처럼 미리 낸 돈은 빼고, ‘현지에서 오늘 쓸 수 있는 돈’만 딱 계산해요."},
+   en:{t:"Pre-booked vs. on-site, separated",d:"We set aside what you prepaid (flights, hotels) and show exactly what you can spend on-site today."},
+   shot:'<div class="hpcard"><div class="hptt2">오늘 쓸 수 있는 돈</div><div class="hpbig">¥10,870</div><div class="hpbarline"><i style="width:38%"></i></div><div class="hpenv"><div><span>✈️ 사전예약</span><b>₩1.18M</b></div><div><span>🧾 현지</span><b>₩1.10M</b></div></div></div>'},
+  {ko:{t:"캡처 한 장이면 끝",d:"영수증·카드내역·은행앱 화면을 올리면 여러 건을 한 번에 자동으로 정리해요."},
+   en:{t:"One screenshot is all it takes",d:"Upload a receipt, card statement or bank-app screen and every transaction is logged at once."},
+   shot:'<div class="hpcard"><div class="hptt">✨ 3건을 찾았어요</div><div class="hprow"><span class="hpic">🍜</span><span class="hpm">이치란 라멘</span><b>¥1,180</b></div><div class="hprow"><span class="hpic">🚌</span><span class="hpm">지하철</span><b>¥460</b></div><div class="hprow"><span class="hpic">🛒</span><span class="hpm">Lawson</span><b>¥230</b></div></div>'}
+];
+function obL(){var e=(S.obLang==="en");return {skip:e?"Skip":"건너뛰기",next:e?"Next ›":"다음 ›",start:e?"Get started":"시작하기",toggle:e?"한국어":"EN"};}
 function onboardHTML(){
-  var slides=[
-    {t:"여행마다 프로젝트 하나",d:"목적지·기간·예산으로 프로젝트를 만들면 떠나기 전부터 돌아올 때까지 한 곳에서 관리돼요.",
-     shot:'<div class="hpcard"><div class="hptt2">어디로 가시나요? 🤔✈️</div><div class="hpchips"><span class="hpchip on">🇯🇵 오사카</span><span class="hpchip">🎓 교환학생</span></div><div class="hpchips" style="margin-top:6px"><span class="hpchip">9.10 – 12.20</span><span class="hpchip">✏️ 수정 가능</span></div></div>'},
-    {t:"나라·목적만 고르면 끝",d:"통화가 자동으로 맞춰지고, 같은 도시·목적으로 다녀온 또래 평균으로 예산까지 제안해요.",
-     shot:'<div class="hpcard"><div class="hptt2">나라와 목적을 고르면</div><div class="hpchips"><span class="hpchip on">🇯🇵 일본 · JPY</span></div><div class="hpchips" style="margin-top:6px"><span class="hpchip">🧳 여행</span><span class="hpchip">💼 출장</span><span class="hpchip">🎓 교환학생</span></div></div>'},
-    {t:"사전예약과 현지 지출, 따로",d:"항공·숙소처럼 미리 낸 돈은 빼고, ‘현지에서 오늘 쓸 수 있는 돈’만 딱 계산해요.",
-     shot:'<div class="hpcard"><div class="hptt2">오늘 쓸 수 있는 돈</div><div class="hpbig">¥10,870</div><div class="hpbarline"><i style="width:38%"></i></div><div class="hpenv"><div><span>✈️ 사전예약</span><b>₩1.18M</b></div><div><span>🧾 현지</span><b>₩1.10M</b></div></div></div>'},
-    {t:"캡처 한 장이면 끝",d:"영수증·카드내역·은행앱 화면을 올리면 여러 건을 한 번에 자동으로 정리해요.",
-     shot:'<div class="hpcard"><div class="hptt">✨ 3건을 찾았어요</div><div class="hprow"><span class="hpic">🍜</span><span class="hpm">이치란 라멘</span><b>¥1,180</b></div><div class="hprow"><span class="hpic">🚌</span><span class="hpm">지하철</span><b>¥460</b></div><div class="hprow"><span class="hpic">🛒</span><span class="hpm">Lawson</span><b>¥230</b></div></div>'}
-  ];
+  var lang=(S.obLang==="en")?"en":"ko",L=obL();
   return '<div class="ob" id="onboard">'+
-    '<button class="ob-skip" id="ob_skip">건너뛰기</button>'+
+    '<div class="ob-top"><button class="ob-lang" id="ob_lang">🌐 '+L.toggle+'</button>'+
+      '<button class="ob-skip" id="ob_skip">'+L.skip+'</button></div>'+
     '<div class="ob-slides" id="ob_slides">'+
-      slides.map(function(s){return '<div class="ob-slide"><div class="hpshot">'+s.shot+'</div><h2>'+s.t+'</h2><p>'+s.d+'</p></div>';}).join("")+
+      OB_SLIDES.map(function(s){var c=s[lang]||s.ko;return '<div class="ob-slide"><div class="hpshot">'+s.shot+'</div><h2>'+c.t+'</h2><p>'+c.d+'</p></div>';}).join("")+
     '</div>'+
-    '<div class="ob-foot"><div class="ob-dots" id="ob_dots">'+slides.map(function(_,i){return '<i'+(i===0?' class="on"':'')+'></i>';}).join("")+'</div>'+
-      '<button class="btn" id="ob_next" data-last="'+(slides.length-1)+'">다음 ›</button></div>'+
+    '<div class="ob-foot"><div class="ob-dots" id="ob_dots">'+OB_SLIDES.map(function(_,i){return '<i'+(i===0?' class="on"':'')+'></i>';}).join("")+'</div>'+
+      '<button class="btn" id="ob_next" data-last="'+(OB_SLIDES.length-1)+'" data-next="'+L.next+'" data-start="'+L.start+'">'+L.next+'</button></div>'+
   '</div>';
 }
 function showOnboarding(force){
@@ -1829,6 +1836,15 @@ document.addEventListener("click",function(e){
   var el;
   /* B-2 온보딩 오버레이 */
   if(e.target.id==="ob_skip"){finishOnboarding();return;}
+  if(e.target.id==="ob_lang"){   /* F-1: 온보딩 한/영 토글 (현재 슬라이드 유지) */
+    var sll=$("#ob_slides"),ix=sll?Math.round(sll.scrollLeft/Math.max(1,sll.clientWidth)):0;
+    S.obLang=(S.obLang==="en")?"ko":"en";
+    var ov=$("#onboard");if(ov)ov.remove();
+    var wr=document.createElement("div");wr.innerHTML=onboardHTML();document.body.appendChild(wr.firstChild);
+    var s2=$("#ob_slides");if(s2){s2.scrollLeft=ix*s2.clientWidth;
+      var od=$("#ob_dots");if(od)Array.prototype.forEach.call(od.children,function(d,i){d.className=(i===ix?"on":"");});
+      var nx=$("#ob_next");if(nx)nx.textContent=(ix>=(+nx.dataset.last||3))?nx.dataset.start:nx.dataset.next;}
+    return;}
   if(e.target.id==="ob_next"){
     var sl=$("#ob_slides"),last=+(e.target.dataset.last||3);
     var idx=Math.round(sl.scrollLeft/Math.max(1,sl.clientWidth));
@@ -2174,7 +2190,7 @@ document.addEventListener("scroll",function(e){
     var od=$("#ob_dots");if(!od)return;
     var oi=Math.round(e.target.scrollLeft/Math.max(1,e.target.clientWidth));
     Array.prototype.forEach.call(od.children,function(d,i){d.className=(i===oi?"on":"");});
-    var nx=$("#ob_next");if(nx)nx.textContent=(oi>=(+nx.dataset.last||3))?"시작하기":"다음 ›";
+    var nx=$("#ob_next");if(nx)nx.textContent=(oi>=(+nx.dataset.last||3))?(nx.dataset.start||"시작하기"):(nx.dataset.next||"다음 ›");
     return;
   }
 },true);

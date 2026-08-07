@@ -227,7 +227,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 @keyframes pstepIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 /* B-2: 최초 실행 온보딩 오버레이 */
 .ob{position:fixed;inset:0;z-index:200;background:linear-gradient(180deg,#eef3fd 0%,#e8ecfb 45%,#f3eefb 100%);display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top,0px) + 16px) 20px calc(env(safe-area-inset-bottom,0px) + 22px)}
-.ob-skip{align-self:flex-end;background:none;border:none;color:var(--muted);font-size:13px;font-weight:600;padding:6px 2px;cursor:pointer}
+.ob-top{display:flex;align-items:center;justify-content:space-between}
+.ob-lang{background:var(--chip);border:1px solid var(--line);color:var(--ink-sec);font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;cursor:pointer}
+.ob-skip{background:none;border:none;color:var(--muted);font-size:13px;font-weight:600;padding:6px 2px;cursor:pointer}
 .ob-slides{flex:1;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .ob-slides::-webkit-scrollbar{display:none}
 .ob-slide{flex:0 0 100%;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px 6px}
