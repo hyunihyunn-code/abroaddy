@@ -25,12 +25,20 @@ module.exports = async (req, res) => {
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = {}; } }
-  const { imageBase64, mimeType, today, localCur } = body || {};
-  if (!imageBase64) { res.status(400).json({ error: "no image" }); return; }
+  const { imageBase64, mimeType, images, today, localCur } = body || {};
+  // C-1: images 배열(최대 5장) 또는 단일 imageBase64(하위호환) 모두 지원
+  let imgs = [];
+  if (Array.isArray(images) && images.length) {
+    imgs = images.filter((x) => x && x.imageBase64).slice(0, 5)
+      .map((x) => ({ data: x.imageBase64, mime: x.mimeType || "image/jpeg" }));
+  } else if (imageBase64) {
+    imgs = [{ data: imageBase64, mime: mimeType || "image/jpeg" }];
+  }
+  if (!imgs.length) { res.status(400).json({ error: "no image" }); return; }
 
   const prompt = [
-    "이미지는 영수증 또는 은행/카드/간편결제 앱의 결제 내역 화면입니다.",
-    "개별 결제 건을 모두 찾아 아래 규칙으로 JSON을 만드세요.",
+    "첨부된 각 이미지는 영수증 또는 은행/카드/간편결제 앱의 결제 내역 화면입니다. 여러 장이면 모든 이미지를 확인하세요.",
+    "모든 이미지의 개별 결제 건을 하나도 빠짐없이 찾아 아래 규칙으로 JSON을 만드세요.",
     "- m: 가맹점/사용처 이름 (짧게)",
     "- amt: 금액 (숫자만, 통화기호·천단위 콤마 제외)",
     '- cur: 통화 ISO 4217 코드 (기호·문맥으로 추정, 불명확하면 "' + (localCur || "KRW") + '")',
@@ -43,7 +51,7 @@ module.exports = async (req, res) => {
 
   const payload = {
     contents: [{ parts: [
-      { inline_data: { mime_type: mimeType || "image/jpeg", data: imageBase64 } },
+      ...imgs.map((im) => ({ inline_data: { mime_type: im.mime, data: im.data } })),
       { text: prompt }
     ] }],
     generationConfig: {

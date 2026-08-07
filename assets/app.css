@@ -486,6 +486,14 @@ input[type=date].inp,input[type=time].inp{-webkit-appearance:none;appearance:non
 .shotimg{width:100%;max-width:280px;max-height:300px;object-fit:contain;border-radius:16px;margin:6px auto 0;
   border:1px solid var(--line);box-shadow:0 14px 34px -20px rgba(34,54,120,.55);background:#fff}
 .dropzone .btn,.dropzone .small{width:100%;max-width:320px}
+/* C-1: 다중 첨부 썸네일 */
+.shots{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;max-width:320px;margin:6px auto 0}
+.shotwrap{position:relative;width:88px;height:88px}
+.shotimg2{width:88px;height:88px;object-fit:cover;border-radius:12px;border:1px solid var(--line);background:#fff}
+.shotx{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:none;
+  background:var(--ink);color:#fff;font-size:12px;line-height:1;cursor:pointer;box-shadow:0 2px 6px rgba(20,30,70,.4)}
+.addshot{width:88px;height:88px;border-radius:12px;border:1.5px dashed var(--accent-mid);background:var(--accent-soft);
+  color:var(--accent);font-size:28px;font-weight:300;cursor:pointer}
 
 /* ---------- 상단 도움말 버튼 (8:2) ---------- */
 .helpbtn{flex:none;width:44px;height:44px;border-radius:13px;font-size:19px;font-weight:800;color:var(--accent);

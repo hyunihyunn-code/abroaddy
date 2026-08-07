@@ -1215,19 +1215,26 @@ function budgetHint(){
 function vScan(){
   var isR=(S.scanSrc==="receipt");
   if(S.scan==="idle"){
+    var imgs=S.scanImgs||[],n=imgs.length;
     return '<div class="hd"><button class="backbtn" id="sback">‹ 뒤로</button><span class="sub">영수증·카드내역 스캔</span></div>'+
     '<div class="dropzone">'+
-      (S.scanImg?'<img class="shotimg" src="'+S.scanImg+'" alt="업로드한 사진">':'<div class="upicon">📷</div>')+
-      '<div class="small" style="margin:14px 0 2px;text-align:center">영수증이나 은행·카드·간편결제 앱 화면을 올리면<br>여러 건을 한 번에 읽어 정리해요.</div>'+
-      '<input type="file" id="scanfile" accept="image/*" style="display:none">'+
-      '<button class="btn" id="btnupload" style="margin-top:16px">📷 사진 업로드</button>'+
-      '<div class="small" style="margin-top:9px;text-align:center">카메라로 찍거나 갤러리에서 고를 수 있어요</div></div>';
+      (n
+        ? '<div class="shots">'+imgs.map(function(u,i){return '<div class="shotwrap"><img class="shotimg2" src="'+u+'" alt="첨부 '+(i+1)+'"><button class="shotx" data-rmshot="'+i+'" aria-label="삭제">✕</button></div>';}).join("")+
+            (n<5?'<button class="addshot" id="btnupload" aria-label="사진 추가">＋</button>':'')+'</div>'+
+          '<div class="small" style="margin:12px 0 2px;text-align:center"><b>'+n+'/5장</b> · 여러 장을 한 번에 읽어요</div>'
+        : '<div class="upicon">📷</div>'+
+          '<div class="small" style="margin:14px 0 2px;text-align:center">영수증이나 은행·카드·간편결제 앱 화면을 올리면<br>여러 건을 한 번에 읽어 정리해요. (최대 5장)</div>')+
+      '<input type="file" id="scanfile" accept="image/*" multiple style="display:none">'+
+      (n?'<button class="btn" id="btnscanstart" style="margin-top:16px">'+n+'장 읽기</button>'
+        :'<button class="btn" id="btnupload" style="margin-top:16px">📷 사진 업로드</button>')+
+      '<div class="small" style="margin-top:9px;text-align:center">'+(n?'＋ 로 더 넣거나 ✕ 로 지울 수 있어요':'카메라로 찍거나 갤러리에서 여러 장 고를 수 있어요')+'</div></div>';
   }
   if(S.scan==="loading"){
+    var im0=(S.scanImgs||[])[0];
     return '<div class="hd"><h2>읽는 중</h2></div><div class="scanning">'+
-      (S.scanImg?'<img class="shotimg" src="'+S.scanImg+'" alt="업로드한 사진">':'<div class="upicon">📷</div>')+
+      (im0?'<img class="shotimg" src="'+im0+'" alt="업로드한 사진">':'<div class="upicon">📷</div>')+
       '<div class="scanline"></div></div>'+
-      '<div class="small" style="text-align:center;margin-top:16px">날짜 · 사용처 · 금액을 찾고 있습니다…</div>';
+      '<div class="small" style="text-align:center;margin-top:16px">'+((S.scanImgs||[]).length>1?(S.scanImgs.length+'장에서 '):'')+'날짜 · 사용처 · 금액을 찾고 있습니다…</div>';
   }
   if(S.scan==="empty"||S.scan==="unreadable"||S.scan==="error"||S.scan==="limited"){
     var F={
@@ -1256,7 +1263,7 @@ function vScan(){
     '<button class="btn" id="btnsave">이대로 저장하기</button>'+
     '<button class="btn ghost" id="btncancel" style="margin-top:8px">다시 올리기</button>';
 }
-function clearScanImg(){try{if(S.scanImg)URL.revokeObjectURL(S.scanImg);}catch(_){}S.scanImg=null;S.scanFile=null;}
+function clearScanImg(){try{(S.scanImgs||[]).forEach(function(u){URL.revokeObjectURL(u);});}catch(_){}S.scanImgs=[];S.scanFiles=[];}
 
 /* 업로드한 사진을 인식한다.
    - Vercel 배포(프록시 있음): /api/scan 이 서버에서 Gemini를 호출해 거래를 인식
@@ -1295,10 +1302,13 @@ function fileToScaledBase64(file,max){
 function startScan(){
   S.scan="loading";render();
   if(!SCAN_ENDPOINT){ setTimeout(function(){S.scanRows=demoScanRows();S.scan="done";render();},1200); return; }
-  if(!S.scanFile){ S.scan="empty";render();return; }
-  fileToScaledBase64(S.scanFile).then(function(img){
+  var files=(S.scanFiles||[]).slice(0,5);
+  if(!files.length){ S.scan="empty";render();return; }
+  Promise.all(files.map(function(f){return fileToScaledBase64(f);})).then(function(imgs){
+    /* images: 다중(신규 프록시) · imageBase64: 첫 장(구버전 프록시 하위호환) */
     return fetch(SCAN_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({imageBase64:img.base64,mimeType:img.mimeType,today:TODAY,localCur:localCur()})});
+      body:JSON.stringify({images:imgs.map(function(im){return {imageBase64:im.base64,mimeType:im.mimeType};}),
+        imageBase64:imgs[0].base64,mimeType:imgs[0].mimeType,today:TODAY,localCur:localCur()})});
   }).then(function(r){ if(r.status===429){var le=new Error("429");le.rate=true;throw le;} if(!r.ok) throw new Error(r.status); return r.json(); })
     .then(function(data){
       var rows=(data&&data.rows)||[];
@@ -1979,6 +1989,11 @@ document.addEventListener("click",function(e){
 
   /* scan: 사진을 다시 올리기 (되돌아가 새 사진 선택) */
   if(e.target.id==="btnscan"){startScan();return;}
+  if(e.target.id==="btnscanstart"){startScan();return;}   /* C-1: 첨부한 사진들 인식 시작 */
+  if((el=e.target.closest("[data-rmshot]"))){var ri=+el.dataset.rmshot;   /* C-1: 첨부 사진 삭제 */
+    try{URL.revokeObjectURL((S.scanImgs||[])[ri]);}catch(_){}
+    if(S.scanImgs)S.scanImgs.splice(ri,1); if(S.scanFiles)S.scanFiles.splice(ri,1);
+    render();return;}
   if(e.target.id==="btncancel"){clearScanImg();S.scan="idle";render();return;}
   if(e.target.id==="btnsave"){
     var cnt=S.scanRows.length;
@@ -2053,11 +2068,18 @@ document.addEventListener("scroll",function(e){
 /* 사진 선택 완료 → 인식 시작 */
 document.addEventListener("change",function(e){
   if(e.target.id==="scanfile"){
-    var f=e.target.files&&e.target.files[0];
-    if(!f)return;
-    clearScanImg();
-    try{S.scanImg=URL.createObjectURL(f);S.scanFile=f;}catch(_){S.scanImg=null;}
-    startScan();
+    var picked=Array.prototype.slice.call(e.target.files||[]);
+    if(!picked.length)return;
+    if(!S.scanFiles)S.scanFiles=[]; if(!S.scanImgs)S.scanImgs=[];
+    var room=5-S.scanFiles.length;
+    if(picked.length>room)toast("최대 5장까지 첨부할 수 있어요");
+    picked.slice(0,Math.max(0,room)).forEach(function(f){
+      S.scanFiles.push(f);
+      try{S.scanImgs.push(URL.createObjectURL(f));}catch(_){S.scanImgs.push("");}
+    });
+    e.target.value="";        /* 같은 파일 다시 고를 수 있게 초기화 */
+    S.scan="idle";render();   /* 자동 인식 대신 첨부만 — 사용자가 "N장 읽기"로 시작 */
+    return;
   }
   /* D-1: 동의 체크박스 상태 보존 (busy 재렌더 대비) */
   if(e.target.id==="cs_req"){if(S.auth)S.auth.consentReq=e.target.checked;return;}
