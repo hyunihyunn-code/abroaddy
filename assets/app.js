@@ -1198,9 +1198,11 @@ function stepBody(n,f){
   if(n===3)return '<input class="inp" id="n_name" value="'+esc(f.name)+'" placeholder="예: 서현이와 후쿠오카 여행" autocomplete="off">'+
     '<button class="ab-btn" id="n_next3" style="margin-top:11px">다음 ›</button>';
   if(n===4)return '<input class="inp" id="n_start" type="date" value="'+f.start+'">'+
-    '<div class="small" style="margin-top:7px">날짜를 고르면 다음으로 넘어가요</div>';
+    '<div class="small" style="margin-top:7px">출발 날짜를 고른 뒤 ‘다음’을 눌러주세요</div>'+
+    '<button class="ab-btn" id="n_next4" style="margin-top:11px">다음 ›</button>';
   if(n===5)return '<input class="inp" id="n_end" type="date" value="'+f.end+'"'+(f.start?' min="'+f.start+'"':'')+'>'+
-    (f.start?'<div class="small" style="margin-top:7px">시작일('+f.start+') 이후로 골라주세요</div>':'');
+    (f.start?'<div class="small" style="margin-top:7px">시작일('+f.start+') 이후로 골라주세요</div>':'')+
+    '<button class="ab-btn" id="n_next5" style="margin-top:11px">다음 ›</button>';
   if(n===6){
     var bc=CUR[f.bcur];
     return '<div class="rowbetween" style="margin-bottom:11px"><span class="small">통화</span>'+
@@ -2058,6 +2060,10 @@ document.addEventListener("click",function(e){
     render();return;}
   if(e.target.id==="n_next1"){saveNF();S.nf.open=2;S.nf._scroll=true;render();return;}
   if(e.target.id==="n_next3"){saveNF();if(!S.nf.name){toast("이름을 적어주세요");return;}S.nf.open=4;S.nf._scroll=true;render();return;}
+  if(e.target.id==="n_next4"){saveNF();if(!S.nf.start){toast("출발 날짜를 골라주세요");return;}S.nf.open=5;S.nf._scroll=true;render();return;}
+  if(e.target.id==="n_next5"){saveNF();if(!S.nf.end){toast("돌아오는 날짜를 골라주세요");return;}
+    if(S.nf.start&&S.nf.end<S.nf.start){toast("종료일은 시작일 이후로 골라주세요");return;}
+    S.nf.open=6;S.nf._scroll=true;render();return;}
   if(e.target.id==="destclear"){saveNF();S.nf.dests=[];S.nf.adding=false;render();return;}
   if(e.target.id==="destadd"){saveNF();S.nf.adding=true;S.nf.q="";render();setTimeout(function(){var q=$("#n_q");if(q)q.focus();},50);return;}
   if((el=e.target.closest("[data-destdel]"))){saveNF();S.nf.dests.splice(+el.dataset.destdel,1);render();return;}
@@ -2214,8 +2220,9 @@ document.addEventListener("change",function(e){
   if(e.target.id==="cs_req"){if(S.auth)S.auth.consentReq=e.target.checked;return;}
   if(e.target.id==="cs_mkt"){if(S.auth)S.auth.consentMkt=e.target.checked;return;}
   /* B-1: 날짜 선택 시 자동으로 다음 단계로 */
-  if(e.target.id==="n_start"&&e.target.value){S.nf.start=e.target.value;if(S.nf.end&&S.nf.end<e.target.value)S.nf.end="";S.nf.open=5;S.nf._scroll=true;render();return;}
-  if(e.target.id==="n_end"&&e.target.value){S.nf.end=e.target.value;S.nf.open=6;S.nf._scroll=true;render();return;}
+  /* 날짜는 값만 저장하고 자동 진행 안 함 — 피커를 열고 닫기만 해도 오늘로 넘어가던 문제 방지. '다음' 버튼으로 진행 */
+  if(e.target.id==="n_start"){S.nf.start=e.target.value;if(S.nf.end&&e.target.value&&S.nf.end<e.target.value)S.nf.end="";return;}
+  if(e.target.id==="n_end"){S.nf.end=e.target.value;return;}
 });
 document.addEventListener("keydown",function(e){
   if(e.key===" "||e.key==="Enter"){var el=e.target.closest("[data-pick]");if(el){e.preventDefault();el.click();}}
