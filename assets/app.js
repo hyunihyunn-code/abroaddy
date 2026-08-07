@@ -1013,7 +1013,7 @@ function amtHint(t){
 }
 
 /* ---------- new project ---------- */
-function freshNF(){return {name:"",dests:[],adding:false,purpose:"여행",start:"",end:"",bPre:"",bLocal:"",bcur:"KRW",q:""};}
+function freshNF(){return {name:"",dests:[],adding:false,purpose:"",start:"",end:"",bPre:"",bLocal:"",bcur:"KRW",q:"",open:1};}
 function startNewProject(){S.editPid=null;S.nf=freshNF();S.tab="newproj";}
 /* MY에서 기존 프로젝트를 수정 — 생성 폼을 값 채워서 재사용 */
 function openEditProject(k){
@@ -1032,62 +1032,78 @@ function openEditProject(k){
   };
   S.tab="newproj";render();
 }
+/* B-1: 자동 진행형 아코디언 스텝 폼 — 목적지→목적→이름→시작일→종료일→예산 */
+function stepSum(n,f){
+  if(n===1)return f.dests.length?f.dests.map(function(d){return d.flag+" "+d.ko;}).join(", "):"";
+  if(n===2){var p=PURPOSES.filter(function(x){return x.k===f.purpose;})[0];return f.purpose?((p?p.i+" ":"")+f.purpose):"";}
+  if(n===3)return f.name||"";
+  if(n===4)return f.start||"";
+  if(n===5)return f.end||"";
+  if(n===6){var bc=CUR[f.bcur],a=[];if(Number(rawNum(f.bLocal)))a.push("현지 "+bc.s+fmtNum(f.bLocal));if(Number(rawNum(f.bPre)))a.push("사전 "+bc.s+fmtNum(f.bPre));return a.join(" · ");}
+  return "";
+}
+function stepBody(n,f){
+  if(n===1){
+    return (f.dests.length?f.dests.map(function(dd,ii){
+        return '<div class="picked"><span class="fl">'+dd.flag+'</span><span><b>'+dd.ko+'</b>'+
+          '<span>'+dd.country+' · '+dd.cur+' '+CUR[dd.cur].s+'</span></span>'+
+          '<button class="x" data-destdel="'+ii+'">✕</button></div>';}).join(""):"")+
+      '<input class="inp" id="n_q" value="'+esc(f.q)+'" placeholder="도시 이름을 적어보세요 (예: 오사카)" autocomplete="off" style="margin-top:'+(f.dests.length?"7px":"0")+'">'+
+      '<div id="dest_list">'+destListHTML()+'</div>'+
+      (f.dests.length>1?'<div class="small" style="margin-top:8px">💡 '+
+        (f.dests.every(function(x){return x.cur===f.dests[0].cur;})
+          ? '모두 '+f.dests[0].cur+'를 써요. 그 통화로 보여드릴게요.'
+          : '통화가 여러 개라 <b>원화</b>로 보여드려요. 각 지출은 결제한 통화 그대로 기록돼요.')+'</div>':'')+
+      (f.dests.length?'<button class="ab-btn" id="n_next1" style="margin-top:11px">다음 ›</button>':'');
+  }
+  if(n===2)return '<div class="catrow">'+
+    PURPOSES.map(function(x){return '<button data-purpose="'+esc(x.k)+'" aria-pressed="'+(x.k===f.purpose)+'">'+x.i+' '+esc(x.k)+'</button>';}).join("")+'</div>';
+  if(n===3)return '<input class="inp" id="n_name" value="'+esc(f.name)+'" placeholder="예: 서현이와 후쿠오카 여행" autocomplete="off">'+
+    '<button class="ab-btn" id="n_next3" style="margin-top:11px">다음 ›</button>';
+  if(n===4)return '<input class="inp" id="n_start" type="date" value="'+f.start+'">'+
+    '<div class="small" style="margin-top:7px">날짜를 고르면 다음으로 넘어가요</div>';
+  if(n===5)return '<input class="inp" id="n_end" type="date" value="'+f.end+'"'+(f.start?' min="'+f.start+'"':'')+'>'+
+    (f.start?'<div class="small" style="margin-top:7px">시작일('+f.start+') 이후로 골라주세요</div>':'');
+  if(n===6){
+    var bc=CUR[f.bcur];
+    return '<div class="rowbetween" style="margin-bottom:11px"><span class="small">통화</span>'+
+      '<span class="seg">'+(function(){var base=["KRW","USD","EUR","JPY"];if(base.indexOf(f.bcur)<0)base.push(f.bcur);
+        return base.map(function(cc){return '<button data-bcur="'+cc+'" aria-pressed="'+(cc===f.bcur)+'">'+CUR[cc].s+'</button>';}).join("")+'<button id="bcurmore">＋</button>';})()+'</span></div>'+
+      '<div class="field"><label>✈️ 사전 예약 — 항공 · 숙소 · 미리 산 티켓</label>'+
+        '<div class="amtin"><span class="cu">'+bc.s+'</span><input id="n_pre" type="text" inputmode="numeric" placeholder="0" value="'+fmtNum(f.bPre)+'"></div></div>'+
+      '<div class="field" style="margin-bottom:0"><label>🧾 현지 지출 — 밥값 · 교통 · 쇼핑</label>'+
+        '<div class="amtin"><span class="cu">'+bc.s+'</span><input id="n_local" type="text" inputmode="numeric" placeholder="0" value="'+fmtNum(f.bLocal)+'"></div></div>'+
+      '<div class="tip" id="n_tip"><span class="e">🧮</span><p>'+budgetHint()+'</p></div>'+
+      '<div id="n_auto">'+autoBudgetBox()+'</div>';
+  }
+  return "";
+}
+var STEP_LB=["","목적지","목적","이름","시작일","종료일","예산"];
 function vNewProj(){
   var f=S.nf,editing=!!S.editPid;
-  var q=f.q.trim().toLowerCase();
-  var hits=q?CITIES.filter(function(c){
-    return c.ko.indexOf(f.q.trim())===0||c.en.toLowerCase().indexOf(q)===0||c.country.indexOf(f.q.trim())===0;
-  }).slice(0,6):[];
-  var d=(f.start&&f.end)?Math.max(1,days(f.start,f.end)+1):0;
-  var bc=CUR[f.bcur];
-  var per=(d&&f.bLocal)?Number(f.bLocal)/d:0;
-  return '<div class="hd"><button class="backbtn" id="nback">‹ 뒤로</button><span class="sub">'+(editing?"프로젝트 수정":"새 프로젝트")+'</span></div>'+
-  '<div class="card">'+
-    '<div class="field" style="margin-bottom:13px"><label>어디로 가시나요? 🤔✈️</label>'+
-      (f.dests.length
-        ? f.dests.map(function(dd,ii){
-            return '<div class="picked"><span class="fl">'+dd.flag+'</span><span><b>'+dd.ko+'</b>'+
-              '<span>'+dd.country+' · '+dd.cur+' '+CUR[dd.cur].s+'</span></span>'+
-              '<button class="x" data-destdel="'+ii+'">✕</button></div>';}).join("")
-        : '')+
-      (f.adding||!f.dests.length
-        ? '<input class="inp" id="n_q" value="'+esc(f.q)+'" placeholder="도시 이름을 적어보세요 (예: 오사카)" autocomplete="off" style="margin-top:'+(f.dests.length?"7px":"0")+'">'+
-          '<div id="dest_list">'+destListHTML()+'</div>'
-        : '<button class="addc" id="destadd" style="margin-top:7px">＋ 도시 추가</button>')+
-      (f.dests.length>1
-        ? '<div class="small" style="margin-top:8px">💡 '+
-          (f.dests.every(function(x){return x.cur===f.dests[0].cur;})
-            ? '모두 '+f.dests[0].cur+'를 써요. 그 통화로 보여드릴게요.'
-            : '통화가 여러 개라 <b>원화</b>로 보여드려요. 각 지출은 결제한 통화 그대로 기록돼요.')+'</div>'
-        : '')+
-    '</div>'+
-    '<div class="field"><label>어떤 목적인가요</label><div class="catrow">'+
-      PURPOSES.map(function(x){return '<button data-purpose="'+esc(x.k)+'" aria-pressed="'+(x.k===f.purpose)+'">'+x.i+' '+esc(x.k)+'</button>';}).join("")+
-    '</div></div>'+
-    '<div class="field" style="margin-bottom:0"><label>프로젝트 이름</label>'+
-      '<input class="inp" id="n_name" value="'+esc(f.name)+'" placeholder="예: 서현이와 덴마크, 후쿠오카 여행"></div>'+
-  '</div>'+
-  '<div class="card">'+
-      '<div class="field"><label>시작일</label><input class="inp" id="n_start" type="date" value="'+f.start+'"></div>'+
-      '<div class="field" style="margin-bottom:0"><label>종료일</label><input class="inp" id="n_end" type="date" value="'+f.end+'"></div>'+
-  '</div>'+
-  '<div class="card">'+
-    '<div class="rowbetween" style="margin-bottom:11px"><span style="font-size:14px;font-weight:700">예산</span>'+
-      '<span class="seg">'+(function(){var base=["KRW","USD","EUR","JPY"];
-        if(base.indexOf(f.bcur)<0)base.push(f.bcur);
-        return base.map(function(cc){
-          return '<button data-bcur="'+cc+'" aria-pressed="'+(cc===f.bcur)+'">'+CUR[cc].s+'</button>';}).join("")+
-          '<button id="bcurmore">＋</button>';})()+'</span></div>'+
-    '<div class="field"><label>✈️ 사전 예약 — 항공 · 숙소 · 미리 산 티켓</label>'+
-      '<div class="amtin"><span class="cu">'+bc.s+'</span><input id="n_pre" type="text" inputmode="numeric" placeholder="0" value="'+fmtNum(f.bPre)+'"></div></div>'+
-    '<div class="field" style="margin-bottom:0"><label>🧾 현지 지출 — 밥값 · 교통 · 쇼핑</label>'+
-      '<div class="amtin"><span class="cu">'+bc.s+'</span><input id="n_local" type="text" inputmode="numeric" placeholder="0" value="'+fmtNum(f.bLocal)+'"></div></div>'+
-    '<div class="tip" id="n_tip"><span class="e">🧮</span><p>'+budgetHint()+'</p></div>'+
-    '<div id="n_auto">'+autoBudgetBox()+'</div>'+
-  '</div>'+
-  '<button class="btn" id="ncreate" style="margin-top:12px">'+(editing?"저장하기":"프로젝트 만들기")+'</button>'+
-  '<div class="small" style="text-align:center;margin-top:10px">'+(editing?"일정·목적지·예산을 바꿀 수 있어요 · 기록은 그대로 남아요":"만들고 나서도 예산과 기간은 바꿀 수 있어요")+'</div>'+
-  '<div style="height:20px"></div>';
+  var comp=[f.dests.length>0,!!f.purpose,!!(f.name&&f.name.trim()),!!f.start,!!f.end];
+  var firstInc=1;while(firstInc<=5&&comp[firstInc-1])firstInc++;
+  var lastComp=0;for(var i=1;i<=5;i++)if(comp[i-1])lastComp=i;
+  var maxShown=editing?6:Math.min(6,Math.max(firstInc,lastComp+1));
+  var open=(f.open&&f.open<=maxShown)?f.open:(editing?1:firstInc);
+  f.open=open;
+  var html='<div class="hd"><button class="backbtn" id="nback">‹ 뒤로</button><span class="sub">'+(editing?"프로젝트 수정":"새 프로젝트")+'</span></div>';
+  for(var n=1;n<=maxShown;n++){
+    var isOpen=(n===open),done=(n<=5?comp[n-1]:false);
+    html+='<section class="pstep'+(isOpen?" open":done?" done":"")+'" id="pstep-'+n+'">'+
+      '<div class="pstep-head"'+(isOpen?'':' data-step="'+n+'"')+'>'+
+        '<span class="pstep-num">'+((done&&!isOpen)?"✓":n)+'</span>'+
+        '<span class="pstep-lb">'+STEP_LB[n]+'</span>'+
+        (isOpen?'':'<span class="pstep-sum">'+esc(stepSum(n,f)||"—")+'</span><span class="pstep-edit">수정</span>')+
+      '</div>'+
+      (isOpen?'<div class="pstep-body">'+stepBody(n,f)+'</div>':'')+
+    '</section>';
+  }
+  if(maxShown>=6){
+    html+='<button class="btn" id="ncreate" style="margin-top:14px">'+(editing?"저장하기":"프로젝트 만들기")+'</button>'+
+      '<div class="small" style="text-align:center;margin-top:10px">'+(editing?"기록은 그대로 남아요":"만들고 나서도 예산과 기간은 바꿀 수 있어요")+'</div>';
+  }
+  return html+'<div style="height:24px"></div>';
 }
 
 function normOf(f){
@@ -1428,6 +1444,15 @@ function render(keepScroll){
   Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(b){
     b.setAttribute("aria-current",!S.detail&&(b.dataset.tab===S.tab||(S.tab==="scan"&&b.dataset.tab==="add")));});
   syncSel();v.scrollTop=keepScroll?prevScroll:0;   /* A-4: 요청 시 스크롤 위치 유지 */
+  /* B-1: 스텝 진행 시 열린 단계로 부드럽게 스크롤 + 텍스트칸 포커스 */
+  if(S.tab==="newproj"&&S.nf&&S.nf._scroll){
+    S.nf._scroll=false;
+    var op=S.nf.open||1,st=$("#pstep-"+op);
+    if(st)setTimeout(function(){
+      st.scrollIntoView({behavior:"smooth",block:"center"});
+      if(op===1||op===3){var fe=st.querySelector("input");if(fe)try{fe.focus({preventScroll:true});}catch(_){fe.focus();}}
+    },40);
+  }
   stash();
 }
 function syncSel(){
@@ -1803,17 +1828,21 @@ document.addEventListener("click",function(e){
 
   /* new project */
   if(e.target.id==="nback"){var toMy=!!S.editPid;S.editPid=null;S.tab=toMy?"my":"home";render();return;}
+  if((el=e.target.closest("[data-step]"))){saveNF();S.nf.open=+el.dataset.step;S.nf._scroll=true;render();return;}
   if((el=e.target.closest("[data-dest]"))){
-    saveNF();var c=CITIES[+el.dataset.dest];
+    saveNF();var c=CITIES[+el.dataset.dest],wasEmpty=!S.nf.dests.length;
     if(!S.nf.dests.some(function(x){return x.ko===c.ko;}))S.nf.dests.push(c);
-    S.nf.adding=false;
-    S.nf.q="";render();return;}
+    S.nf.adding=false;S.nf.q="";
+    if(wasEmpty){S.nf.open=2;S.nf._scroll=true;}   /* B-1: 첫 도시 선택 시 다음 단계로 자동 진행 */
+    render();return;}
+  if(e.target.id==="n_next1"){saveNF();S.nf.open=2;S.nf._scroll=true;render();return;}
+  if(e.target.id==="n_next3"){saveNF();if(!S.nf.name){toast("이름을 적어주세요");return;}S.nf.open=4;S.nf._scroll=true;render();return;}
   if(e.target.id==="destclear"){saveNF();S.nf.dests=[];S.nf.adding=false;render();return;}
   if(e.target.id==="destadd"){saveNF();S.nf.adding=true;S.nf.q="";render();setTimeout(function(){var q=$("#n_q");if(q)q.focus();},50);return;}
   if((el=e.target.closest("[data-destdel]"))){saveNF();S.nf.dests.splice(+el.dataset.destdel,1);render();return;}
-  if((el=e.target.closest("[data-bcur]"))){saveNF();S.nf.bcur=el.dataset.bcur;render();return;}
+  if((el=e.target.closest("[data-bcur]"))){saveNF();S.nf.bcur=el.dataset.bcur;render(true);return;}
   if(e.target.id==="bcurmore"){saveNF();S.curq="";S.curTarget="budget";curSheet();return;}
-  if((el=e.target.closest("[data-purpose]"))){saveNF();S.nf.purpose=el.dataset.purpose;render();return;}
+  if((el=e.target.closest("[data-purpose]"))){saveNF();S.nf.purpose=el.dataset.purpose;S.nf.open=3;S.nf._scroll=true;render();return;}
   if(e.target.id==="autobudget"){
     saveNF();var f=S.nf,nm=normOf(f),d=Math.max(1,days(f.start,f.end)+1);
     if(!nm)return;
@@ -1931,9 +1960,14 @@ document.addEventListener("change",function(e){
     try{S.scanImg=URL.createObjectURL(f);S.scanFile=f;}catch(_){S.scanImg=null;}
     startScan();
   }
+  /* B-1: 날짜 선택 시 자동으로 다음 단계로 */
+  if(e.target.id==="n_start"&&e.target.value){S.nf.start=e.target.value;if(S.nf.end&&S.nf.end<e.target.value)S.nf.end="";S.nf.open=5;S.nf._scroll=true;render();return;}
+  if(e.target.id==="n_end"&&e.target.value){S.nf.end=e.target.value;S.nf.open=6;S.nf._scroll=true;render();return;}
 });
 document.addEventListener("keydown",function(e){
   if(e.key===" "||e.key==="Enter"){var el=e.target.closest("[data-pick]");if(el){e.preventDefault();el.click();}}
+  /* B-1: 이름 입력 후 Enter → 다음 단계 */
+  if(e.key==="Enter"&&e.target.id==="n_name"){e.preventDefault();saveNF();if(S.nf.name){S.nf.open=4;S.nf._scroll=true;render();}else toast("이름을 적어주세요");}
 });
 
 /* ---------- 로그인 화면 (아이디 / 비밀번호) ----------

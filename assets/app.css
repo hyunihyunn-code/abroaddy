@@ -202,6 +202,18 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .pv-cta{margin-top:12px;padding:10px;border-radius:9px;background:var(--accent);color:#fff;font-size:12.5px;font-weight:700}
 .pv-foot{margin-top:9px;font-size:11.5px;color:var(--accent);font-weight:600}
 .msg{background:var(--chip);border-radius:12px;padding:12px 13px;font-size:12.5px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;color:var(--ink-sec);margin-top:6px}
+/* B-1: 프로젝트 생성 아코디언 스텝 */
+.pstep{background:var(--white);border:1px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden;transition:border-color .15s}
+.pstep.open{border-color:var(--accent-mid);box-shadow:0 10px 26px -20px rgba(34,54,120,.5)}
+.pstep-head{display:flex;align-items:center;gap:10px;padding:14px 15px}
+.pstep.done .pstep-head,.pstep-head[data-step]{cursor:pointer}
+.pstep-num{width:23px;height:23px;border-radius:50%;background:var(--chip);color:var(--muted);font-size:12px;font-weight:800;display:grid;place-items:center;flex:none}
+.pstep.open .pstep-num,.pstep.done .pstep-num{background:var(--accent);color:#fff}
+.pstep-lb{font-size:14px;font-weight:700;color:var(--ink)}
+.pstep-sum{margin-left:auto;font-size:12.5px;color:var(--muted);max-width:52%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.pstep-edit{font-size:11.5px;color:var(--accent);font-weight:700;flex:none;margin-left:10px}
+.pstep-body{padding:2px 15px 16px;animation:pstepIn .18s ease}
+@keyframes pstepIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 
 .field{margin-bottom:13px}
 .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
