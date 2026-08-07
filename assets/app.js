@@ -95,6 +95,24 @@ var ICONS=["🎁","🧼","💊","📚","🍺","🚲","💇","🐾","🎨","🏋�
  "💈","💅","🧴","👕","👟","💐","🪥","🩹","📶","💸"];
 
 var CITIES=[
+ ["서울","Seoul","한국","🇰🇷","KRW"],
+ ["부산","Busan","한국","🇰🇷","KRW"],
+ ["제주","Jeju","한국","🇰🇷","KRW"],
+ ["인천","Incheon","한국","🇰🇷","KRW"],
+ ["경주","Gyeongju","한국","🇰🇷","KRW"],
+ ["강릉","Gangneung","한국","🇰🇷","KRW"],
+ ["전주","Jeonju","한국","🇰🇷","KRW"],
+ ["여수","Yeosu","한국","🇰🇷","KRW"],
+ ["속초","Sokcho","한국","🇰🇷","KRW"],
+ ["대구","Daegu","한국","🇰🇷","KRW"],
+ ["대전","Daejeon","한국","🇰🇷","KRW"],
+ ["광주","Gwangju","한국","🇰🇷","KRW"],
+ ["수원","Suwon","한국","🇰🇷","KRW"],
+ ["춘천","Chuncheon","한국","🇰🇷","KRW"],
+ ["포항","Pohang","한국","🇰🇷","KRW"],
+ ["통영","Tongyeong","한국","🇰🇷","KRW"],
+ ["안동","Andong","한국","🇰🇷","KRW"],
+ ["울산","Ulsan","한국","🇰🇷","KRW"],
  ["도쿄","Tokyo","일본","🇯🇵","JPY"],
  ["오사카","Osaka","일본","🇯🇵","JPY"],
  ["교토","Kyoto","일본","🇯🇵","JPY"],
@@ -513,8 +531,9 @@ function loadReference(){
     cts.forEach(function(c){CAT_ID[c.name]=c.id;CAT_NAME[c.id]=c.name;
       if(c.user_id)customCats.push({n:c.name,i:c.icon||"⭐",pre:c.is_pre});});
     CITY_ID={};CITY_BY_ID={};
+    var CFLAG={};CITIES.forEach(function(c){CFLAG[c.ko]=c.flag;});   /* B-4: DB flag_emoji 없으면 클라이언트 국기로 폴백 */
     cities.forEach(function(c){if(!(c.name_ko in CITY_ID))CITY_ID[c.name_ko]=c.id;
-      CITY_BY_ID[c.id]={ko:c.name_ko,flag:c.flag_emoji,country:c.country};});
+      CITY_BY_ID[c.id]={ko:c.name_ko,flag:c.flag_emoji||CFLAG[c.name_ko]||"",country:c.country};});
   });
 }
 /* 내 데이터 전체 로드 → 인메모리 P/TX/BUDGETLOG 채우기 */
@@ -629,16 +648,16 @@ function localCur(){return proj().cur;}
 /* main display per S.disp */
 function show(k){
   var lc=localCur();
-  if(S.disp==="krw") return '<b class="money">'+fmt(k,"KRW")+'</b>';
+  if(S.disp==="krw"||lc==="KRW") return '<b class="money">'+fmt(k,"KRW")+'</b>';   /* B-4: 원화 프로젝트는 중복 표기 생략 */
   return '<b class="money">'+fmt(k,lc)+'</b><span class="approx"> (≈ '+fmt(k,"KRW")+')</span>';
 }
 function showS(k){ /* single line, small */
   var lc=localCur();
-  return S.disp==="krw" ? fmt(k,"KRW") : fmt(k,lc)+" (≈ "+fmt(k,"KRW")+")";
+  return (S.disp==="krw"||lc==="KRW") ? fmt(k,"KRW") : fmt(k,lc)+" (≈ "+fmt(k,"KRW")+")";
 }
 function effDisp(){return isMulti()?"krw":S.disp;}
 function mainOnly(k){return effDisp()==="krw"?fmt(k,"KRW"):fmt(k,localCur());}
-function subOnly(k){return effDisp()==="krw"?"≈ "+fmt(k,localCur()):"≈ "+fmt(k,"KRW");}
+function subOnly(k){if(localCur()==="KRW")return "";return effDisp()==="krw"?"≈ "+fmt(k,localCur()):"≈ "+fmt(k,"KRW");}
 /* 정산 맥락 — 항상 원화 기준 */
 function krwOnly(k){return fmt(k,"KRW");}
 
