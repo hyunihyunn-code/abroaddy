@@ -787,6 +787,35 @@ function helpSheet(){
     '<div class="helpdots" id="helpdots">'+slides.map(function(_,i){return '<i'+(i===0?' class="on"':'')+'></i>';}).join("")+'</div>'+
     '<button class="btn ghost" id="btnclose" style="margin-top:14px">닫기</button>';
 }
+
+/* B-2: 최초 실행 온보딩 — 스와이프 카드, 스킵 가능, MY에서 다시보기 */
+function onboardHTML(){
+  var slides=[
+    {t:"여행마다 프로젝트 하나",d:"목적지·기간·예산으로 프로젝트를 만들면 떠나기 전부터 돌아올 때까지 한 곳에서 관리돼요.",
+     shot:'<div class="hpcard"><div class="hptt2">어디로 가시나요? 🤔✈️</div><div class="hpchips"><span class="hpchip on">🇯🇵 오사카</span><span class="hpchip">🎓 교환학생</span></div><div class="hpchips" style="margin-top:6px"><span class="hpchip">9.10 – 12.20</span><span class="hpchip">✏️ 수정 가능</span></div></div>'},
+    {t:"나라·목적만 고르면 끝",d:"통화가 자동으로 맞춰지고, 같은 도시·목적으로 다녀온 또래 평균으로 예산까지 제안해요.",
+     shot:'<div class="hpcard"><div class="hptt2">나라와 목적을 고르면</div><div class="hpchips"><span class="hpchip on">🇯🇵 일본 · JPY</span></div><div class="hpchips" style="margin-top:6px"><span class="hpchip">🧳 여행</span><span class="hpchip">💼 출장</span><span class="hpchip">🎓 교환학생</span></div></div>'},
+    {t:"사전예약과 현지 지출, 따로",d:"항공·숙소처럼 미리 낸 돈은 빼고, ‘현지에서 오늘 쓸 수 있는 돈’만 딱 계산해요.",
+     shot:'<div class="hpcard"><div class="hptt2">오늘 쓸 수 있는 돈</div><div class="hpbig">¥10,870</div><div class="hpbarline"><i style="width:38%"></i></div><div class="hpenv"><div><span>✈️ 사전예약</span><b>₩1.18M</b></div><div><span>🧾 현지</span><b>₩1.10M</b></div></div></div>'},
+    {t:"캡처 한 장이면 끝",d:"영수증·카드내역·은행앱 화면을 올리면 여러 건을 한 번에 자동으로 정리해요.",
+     shot:'<div class="hpcard"><div class="hptt">✨ 3건을 찾았어요</div><div class="hprow"><span class="hpic">🍜</span><span class="hpm">이치란 라멘</span><b>¥1,180</b></div><div class="hprow"><span class="hpic">🚌</span><span class="hpm">지하철</span><b>¥460</b></div><div class="hprow"><span class="hpic">🛒</span><span class="hpm">Lawson</span><b>¥230</b></div></div>'}
+  ];
+  return '<div class="ob" id="onboard">'+
+    '<button class="ob-skip" id="ob_skip">건너뛰기</button>'+
+    '<div class="ob-slides" id="ob_slides">'+
+      slides.map(function(s){return '<div class="ob-slide"><div class="hpshot">'+s.shot+'</div><h2>'+s.t+'</h2><p>'+s.d+'</p></div>';}).join("")+
+    '</div>'+
+    '<div class="ob-foot"><div class="ob-dots" id="ob_dots">'+slides.map(function(_,i){return '<i'+(i===0?' class="on"':'')+'></i>';}).join("")+'</div>'+
+      '<button class="btn" id="ob_next" data-last="'+(slides.length-1)+'">다음 ›</button></div>'+
+  '</div>';
+}
+function showOnboarding(force){
+  if(!force){try{if(localStorage.getItem("abrody_onboarded"))return;}catch(_){}}
+  if($("#onboard"))return;
+  var wrap=document.createElement("div");wrap.innerHTML=onboardHTML();
+  document.body.appendChild(wrap.firstChild);
+}
+function finishOnboarding(){try{localStorage.setItem("abrody_onboarded","1");}catch(_){}var el=$("#onboard");if(el)el.remove();}
 function wsSheet(){
   return '<h3>프로젝트</h3><div class="small" style="margin-bottom:10px">기록할 프로젝트를 골라주세요</div>'+
     Object.keys(P).map(function(k){
@@ -1391,6 +1420,9 @@ function vMy(){
   '<div class="card"><div style="font-size:14px;font-weight:600;margin-bottom:8px">내 카테고리</div>'+
     '<div class="catrow">'+cats().map(function(c){return '<button style="cursor:default">'+c.i+' '+esc(c.n)+'</button>';}).join("")+
     '<button class="addc" id="addcat2">＋ 직접 추가</button></div></div>'+
+  '<div class="card"><button class="setrow" id="reonboard" style="padding:2px 0;width:100%;background:none;text-align:left">'+
+    '<span><b style="font-size:14px;font-weight:600">📖 사용법 다시보기</b>'+
+    '<span class="small" style="display:block;margin-top:2px">처음 봤던 온보딩을 다시 열어요</span></span><span class="sub">›</span></button></div>'+
   '<div class="card"><div class="rowbetween"><span><b style="font-size:14px;font-weight:600">계정</b>'+
     '<span class="small" style="display:block;margin-top:3px">'+esc((USER&&USER.email)||"")+'</span></span>'+
     '<button class="minib" id="signout">로그아웃</button></div></div>'+
@@ -1645,6 +1677,14 @@ function addCatSheet(){
 /* ---------- events ---------- */
 document.addEventListener("click",function(e){
   var el;
+  /* B-2 온보딩 오버레이 */
+  if(e.target.id==="ob_skip"){finishOnboarding();return;}
+  if(e.target.id==="ob_next"){
+    var sl=$("#ob_slides"),last=+(e.target.dataset.last||3);
+    var idx=Math.round(sl.scrollLeft/Math.max(1,sl.clientWidth));
+    if(idx>=last){finishOnboarding();return;}
+    sl.scrollTo({left:(idx+1)*sl.clientWidth,behavior:"smooth"});return;}
+  if(e.target.closest("#reonboard")){showOnboarding(true);return;}
   /* onboarding */
   if(e.target.id==="welstart"){startNewProject();render();return;}
   if((el=e.target.closest("[data-editproj]"))){openEditProject(el.dataset.editproj);return;}
@@ -1944,12 +1984,22 @@ document.addEventListener("input",function(e){
     var t2=curTx(),v=Number(e.target.value)||0;
     var h=$("#f_hint");if(h)h.textContent=amtHint({amt:v,cur:t2.cur});}
 });
-/* 도움말 슬라이드 → 점(dot) 표시 갱신 (scroll은 캡처로 잡음) */
+/* 도움말·온보딩 슬라이드 → 점(dot) 표시 갱신 (scroll은 캡처로 잡음) */
 document.addEventListener("scroll",function(e){
-  if(!e.target||e.target.id!=="helpslides")return;
-  var el=e.target,dots=$("#helpdots");if(!dots)return;
-  var idx=Math.round(el.scrollLeft/Math.max(1,el.clientWidth));
-  Array.prototype.forEach.call(dots.children,function(d,i){d.className=(i===idx?"on":"");});
+  if(!e.target)return;
+  if(e.target.id==="helpslides"){
+    var dots=$("#helpdots");if(!dots)return;
+    var idx=Math.round(e.target.scrollLeft/Math.max(1,e.target.clientWidth));
+    Array.prototype.forEach.call(dots.children,function(d,i){d.className=(i===idx?"on":"");});
+    return;
+  }
+  if(e.target.id==="ob_slides"){
+    var od=$("#ob_dots");if(!od)return;
+    var oi=Math.round(e.target.scrollLeft/Math.max(1,e.target.clientWidth));
+    Array.prototype.forEach.call(od.children,function(d,i){d.className=(i===oi?"on":"");});
+    var nx=$("#ob_next");if(nx)nx.textContent=(oi>=(+nx.dataset.last||3))?"시작하기":"다음 ›";
+    return;
+  }
 },true);
 /* 사진 선택 완료 → 인식 시작 */
 document.addEventListener("change",function(e){
@@ -2051,6 +2101,7 @@ document.addEventListener("keydown",function(e){
 /* ---------- init ---------- */
 function initApp(){
   if(!SB||!SB.auth){$("#view").innerHTML='<div class="wel"><div class="wel-badge">📡</div><h1 class="wel-h">연결에 실패했어요</h1><p class="wel-p">네트워크를 확인하고 새로고침해 주세요.</p></div>';var tb=document.querySelector(".tabbar");if(tb)tb.style.display="none";return;}
+  showOnboarding();   /* B-2: 최초 실행 시 온보딩 (localStorage 플래그) */
   SB.auth.getSession().then(function(r){
     var session=r.data&&r.data.session;
     if(session&&session.user){USER=session.user;afterLogin();}
