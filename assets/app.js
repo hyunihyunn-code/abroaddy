@@ -1,6 +1,8 @@
 (function(){
 "use strict";
-var TODAY="2026-07-31";
+/* A-3: 하드코딩 날짜 제거 — 기기 로컬 날짜 사용 (화면별 TZ 정교화는 해당 화면 작업 시) */
+function todayStr(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+var TODAY=todayStr();
 
 /* ---------- currency (rate = KRW per 1 unit) ---------- */
 var CUR={
@@ -1410,8 +1412,9 @@ function vDone(){
 }
 
 /* ---------- render ---------- */
-function render(){
-  var v=$("#view"),h;
+function render(keepScroll){
+  TODAY=todayStr();   /* 장시간 열어둬도 날짜 최신화 (A-3) */
+  var v=$("#view"),h,prevScroll=keepScroll?v.scrollTop:0;
   if(!hasProj()&&S.tab!=="newproj")h=vWelcome();
   else if(S.tab==="done")h=vDone();
   else if(S.detail)h=vEditor();
@@ -1424,7 +1427,7 @@ function render(){
   if(tb)tb.style.display=(!hasProj()||S.tab==="newproj"||S.tab==="done")?"none":"";
   Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(b){
     b.setAttribute("aria-current",!S.detail&&(b.dataset.tab===S.tab||(S.tab==="scan"&&b.dataset.tab==="add")));});
-  syncSel();v.scrollTop=0;
+  syncSel();v.scrollTop=keepScroll?prevScroll:0;   /* A-4: 요청 시 스크롤 위치 유지 */
   stash();
 }
 function syncSel(){
@@ -1682,7 +1685,7 @@ document.addEventListener("click",function(e){
 
   /* --- v9 추가 --- */
   if((el=e.target.closest("[data-unit]"))){S.unit=el.dataset.unit;render();return;}
-  if((el=e.target.closest("[data-pm]"))){var tp=curTx();if(tp){tp.pm=el.dataset.pm;stash();render();}return;}
+  if((el=e.target.closest("[data-pm]"))){syncEditor();var tp=curTx();if(tp){tp.pm=el.dataset.pm;render();}return;}
   if(e.target.id==="rcptog"||e.target.closest("#rcptog")){
     var tr=curTx();if(tr&&tr.src!=="card"){tr.keep=!tr.keep;stash();render();}
     else toast("카드 내역 캡처는 보관할 수 없어요");return;}
@@ -1757,12 +1760,10 @@ document.addEventListener("click",function(e){
   if(e.target.id==="dback"){S.detail=null;if(S.tab==="add"&&S.draft)S.draft=null;render();return;}
   if(e.target.id==="sback"){clearScanImg();S.tab="add";render();return;}
   if((el=e.target.closest("[data-setcat]"))){
-    var t=curTx();t.cat=el.dataset.setcat;t.pre=catOf(t.cat).pre;render();return;}
+    syncEditor();var t=curTx();t.cat=el.dataset.setcat;t.pre=catOf(t.cat).pre;render();return;}
   if((el=e.target.closest("[data-txcur]"))){
     if(S.curTarget==="budget"){S.nf.bcur=el.dataset.txcur;S.curTarget="tx";closeSheet();render();return;}
-    closeSheet();
-    var t2=curTx();t2.amt=Number($("#f_amt").value)||0;t2.cur=el.dataset.txcur;
-    t2.m=$("#f_m").value;t2.memo=$("#f_memo").value;render();return;}
+    closeSheet();syncEditor();var t2=curTx();t2.cur=el.dataset.txcur;render();return;}
   if(e.target.closest("#pretog")){
     var t3=curTx();t3.pre=!t3.pre;
     var sw=$("#pretog .sw");sw.setAttribute("aria-pressed",!!t3.pre);return;}
@@ -1797,7 +1798,7 @@ document.addEventListener("click",function(e){
     var ic=($("[data-cicon][aria-pressed='true']")||{dataset:{cicon:"⭐"}}).dataset.cicon;
     customCats.push({n:nm,i:ic,pre:false});
     dbAddCategory(nm,ic);
-    if(S.detail)curTx().cat=nm;
+    if(S.detail){syncEditor();curTx().cat=nm;}
     closeSheet();render();toast("‘"+nm+"’ 카테고리를 만들었어요");return;}
 
   /* new project */
@@ -1817,7 +1818,7 @@ document.addEventListener("click",function(e){
     saveNF();var f=S.nf,nm=normOf(f),d=Math.max(1,days(f.start,f.end)+1);
     if(!nm)return;
     f.bcur="KRW";f.bPre=String(Math.round(nm.pre));f.bLocal=String(Math.round(nm.perDay*d));
-    render();toast("또래 평균으로 예산을 채웠어요<br>필요하면 바로 고쳐도 됩니다");return;}
+    render(true);toast("또래 평균으로 예산을 채웠어요<br>필요하면 바로 고쳐도 됩니다");return;}
   if(e.target.id==="ncreate"){
     saveNF();var f=S.nf;
     if(!f.dests.length){toast("어디로 가는지 골라주세요");return;}
@@ -1879,6 +1880,15 @@ document.addEventListener("click",function(e){
 });
 
 function curTx(){var d=S.detail;return d.kind==="scan"?S.scanRows[d.i]:(d.kind==="new"?S.draft:byId(d.id));}
+/* A-2: 편집 중 입력값을 대상 객체에 반영 — 분류·결제수단·통화 변경 시 금액 유실 방지 */
+function syncEditor(){
+  var t=curTx();if(!t)return;
+  var a=$("#f_amt");if(a)t.amt=(a.value===""?"":(Number(a.value)||0));
+  var m=$("#f_m");if(m)t.m=m.value;
+  var me=$("#f_memo");if(me)t.memo=me.value;
+  var dd=$("#f_d");if(dd&&dd.value)t.d=dd.value;
+  var ti=$("#f_t");if(ti&&ti.value)t.t=ti.value;
+}
 function saveNF(){
   var q=$("#n_q"),n=$("#n_name"),s=$("#n_start"),e2=$("#n_end"),pre=$("#n_pre"),lo=$("#n_local");
   if(q)S.nf.q=q.value; if(n)S.nf.name=n.value.trim();

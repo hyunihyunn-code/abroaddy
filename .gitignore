@@ -11,3 +11,4 @@ api.md
 *.png
 !icons/*.png
 _canvas.html
+_*.html
