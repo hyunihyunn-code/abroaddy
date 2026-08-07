@@ -1447,7 +1447,43 @@ function vReport(){
         '<span class="track"><i style="width:'+(x[1]/max*100).toFixed(1)+'%;background:'+catColor(x[0])+'"></i></span>'+
         '<span class="vl">'+mainOnly(x[1])+'<i>'+Math.round(x[1]/barTot*100)+'%</i></span></div>';}).join("")+
     '<div class="small" style="margin-top:8px">나눠 낸 금액은 내 몫만 반영됩니다.</div></div>'+
-  pmBlock+depBlock+cmp+lgBlock+'<div style="height:14px"></div>';
+  pmBlock+depBlock+cmp+lgBlock+csvCard()+'<div style="height:14px"></div>';
+}
+/* E-1: 지출 내역 CSV 내보내기 (결제 목업) */
+function csvPrice(){return (days(proj().start,proj().end)+1)>31?3000:1000;}
+function csvPaid(){try{return !!localStorage.getItem("abrody_csv_"+S.pid);}catch(_){return false;}}
+function csvCard(){
+  return '<div class="card"><div class="rowbetween" style="align-items:center">'+
+    '<span><b style="font-size:14px">📄 지출 내역 CSV</b>'+
+    '<span class="small" style="display:block;margin-top:2px">엑셀에서 열 수 있는 파일로 내보내기</span></span>'+
+    '<button class="chip solid" id="csvexport">'+(csvPaid()?"다운로드":"₩"+num(csvPrice(),0))+'</button></div></div>';
+}
+function csvPaySheet(){
+  var pr=csvPrice(),over=(days(proj().start,proj().end)+1)>31;
+  return '<h3>지출 내역 CSV 다운로드</h3>'+
+    '<div class="small" style="margin-bottom:12px">'+esc(proj().name)+' · 전체 지출을 CSV(엑셀) 파일로 내려받아요.</div>'+
+    '<div class="card" style="background:#f4f9ff;border-color:var(--accent-soft)"><div class="rowbetween">'+
+      '<span class="sub">'+(over?"1개월 초과 프로젝트":"1개월 이하 프로젝트")+'</span>'+
+      '<b style="font-size:19px">₩'+num(pr,0)+'</b></div></div>'+
+    '<div class="tip" style="margin-top:10px"><span class="e">🔧</span><p>지금은 <b>예시 결제</b>예요(실결제 연동 전) · 눌러도 요금이 청구되지 않습니다.</p></div>'+
+    '<button class="btn" id="csvpay" style="margin-top:12px">₩'+num(pr,0)+' 결제하고 받기</button>'+
+    '<button class="btn ghost" id="btnclose" style="margin-top:8px">닫기</button>';
+}
+function csvEscape(s){s=String(s==null?"":s);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function downloadCSV(){
+  var p=proj(),rows=txs(),PMN={card:"카드",cash:"현금",account:"계좌"};
+  var header=["날짜","시간","사용처","분류","금액","통화","원화환산","사전예약","결제수단","1/N나눔","메모"];
+  var lines=[header.join(",")];
+  rows.forEach(function(t){
+    lines.push([t.d,t.t||"",t.m||"",t.cat,t.amt,t.cur,Math.round(toKRW(t.amt,t.cur)),
+      t.pre?"Y":"",PMN[t.pm||"card"]||t.pm||"",t.split?(t.split.n+"명"):"",t.memo||""].map(csvEscape).join(","));
+  });
+  var csv="﻿"+lines.join("\r\n");   /* BOM: 엑셀 한글 깨짐 방지 */
+  var blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  var url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=(p.name||"어브로디")+"_지출내역.csv";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
 }
 
 /* ---------- my ---------- */
@@ -1772,6 +1808,8 @@ document.addEventListener("click",function(e){
 
   if(e.target.closest("#wsopen")){openSheet(wsSheet());return;}
   if(e.target.closest("#helpopen")){openSheet(helpSheet());return;}
+  if(e.target.id==="csvexport"){if(csvPaid())downloadCSV();else openSheet(csvPaySheet());return;}   /* E-1 */
+  if(e.target.id==="csvpay"){try{localStorage.setItem("abrody_csv_"+S.pid,"1");}catch(_){}closeSheet();downloadCSV();render();toast("CSV를 내려받았어요");return;}
   if((el=e.target.closest("[data-p]"))){
     S.pid=el.dataset.p;S.sel={};S.selMode=false;S.scan="idle";S.disp="local";S.unit=null;
     S.cal=(P[S.pid].end<TODAY?P[S.pid].end:TODAY).slice(0,7);
