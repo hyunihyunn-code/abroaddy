@@ -216,6 +216,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 /* B-3: 사전예약 없음 토글 + 없음 표시 */
 .minib.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .prenone{padding:11px 13px;border-radius:12px;background:var(--chip);color:var(--muted);font-size:12.5px}
+/* D-1: 개인정보 동의 */
+.consent{margin:12px 0 6px;display:flex;flex-direction:column;gap:9px}
+.chk{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink-sec);cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--accent);flex:none}
+.chk b{color:var(--accent);font-weight:700}
+.lnk{background:none;border:none;color:var(--accent);font-size:12px;text-decoration:underline;padding:0;cursor:pointer;align-self:flex-start;margin:-5px 0 0 27px}
+.policy b{display:block;margin-top:11px;font-size:13px;color:var(--ink)}
+.policy p{margin:3px 0 0;font-size:12.5px;color:var(--ink-sec);line-height:1.5}
 @keyframes pstepIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 /* B-2: 최초 실행 온보딩 오버레이 */
 .ob{position:fixed;inset:0;z-index:200;background:linear-gradient(180deg,#eef3fd 0%,#e8ecfb 45%,#f3eefb 100%);display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top,0px) + 16px) 20px calc(env(safe-area-inset-bottom,0px) + 22px)}

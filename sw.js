@@ -1,7 +1,7 @@
 /* 어브로디 · service worker — offline 지원 + 최신본 우선.
    앱을 자주 고치는 단계라 HTML/JS/CSS는 network-first로 서빙해
    캐시가 오래된 화면을 붙잡는 문제를 막는다. Bump CACHE when core files change. */
-const CACHE = 'abrody-v13';
+const CACHE = 'abrody-v14';
 const CORE = [
   './',
   './index.html',

@@ -2059,6 +2059,9 @@ document.addEventListener("change",function(e){
     try{S.scanImg=URL.createObjectURL(f);S.scanFile=f;}catch(_){S.scanImg=null;}
     startScan();
   }
+  /* D-1: 동의 체크박스 상태 보존 (busy 재렌더 대비) */
+  if(e.target.id==="cs_req"){if(S.auth)S.auth.consentReq=e.target.checked;return;}
+  if(e.target.id==="cs_mkt"){if(S.auth)S.auth.consentMkt=e.target.checked;return;}
   /* B-1: 날짜 선택 시 자동으로 다음 단계로 */
   if(e.target.id==="n_start"&&e.target.value){S.nf.start=e.target.value;if(S.nf.end&&S.nf.end<e.target.value)S.nf.end="";S.nf.open=5;S.nf._scroll=true;render();return;}
   if(e.target.id==="n_end"&&e.target.value){S.nf.end=e.target.value;S.nf.open=6;S.nf._scroll=true;render();return;}
@@ -2082,6 +2085,11 @@ function renderLogin(){
       '<div class="field"><label>전화번호</label><input class="inp" id="au_phone" inputmode="tel" value="'+esc(a.phone||"")+'" placeholder="010-1234-5678"></div>'+
       '<div class="field"><label>아이디</label><input class="inp" id="au_id" autocapitalize="off" autocorrect="off" spellcheck="false" value="'+esc(a.id||"")+'" placeholder="영문/숫자 3자 이상"></div>'+
       '<div class="field"><label>비밀번호</label><input class="inp" id="au_pw" type="password" autocomplete="new-password" placeholder="6자 이상"></div>'+
+      '<div class="consent">'+
+        '<label class="chk"><input type="checkbox" id="cs_req"'+(a.consentReq?" checked":"")+'><span><b>(필수)</b> 개인정보 수집·이용 동의</span></label>'+
+        '<button type="button" class="lnk" id="cs_view">전문 보기</button>'+
+        '<label class="chk"><input type="checkbox" id="cs_mkt"'+(a.consentMkt?" checked":"")+'><span>(선택) 마케팅·혜택 정보 수신</span></label>'+
+      '</div>'+
       '<button class="btn" id="dosignup"'+(a.busy?" disabled":"")+'>'+(a.busy?"가입 중…":"가입하고 시작하기")+'</button>'+
       '<button class="btn ghost" id="tologin" style="margin-top:8px">이미 계정이 있어요 · 로그인</button>';
   }else{
@@ -2103,17 +2111,38 @@ function doSignup(){
   if(!a.name){toast("이름을 입력해 주세요");return;}
   if(!/^[A-Za-z0-9._-]{3,20}$/.test(a.id)){toast("아이디는 영문/숫자 3~20자로 해주세요");return;}
   if((a._pw||"").length<6){toast("비밀번호는 6자 이상이에요");return;}
+  if(!(($("#cs_req")||{}).checked)){toast("개인정보 수집·이용에 동의해 주세요");return;}   /* D-1: 필수 동의 차단 */
+  var mkt=(($("#cs_mkt")||{}).checked)||false;
   a.busy=true;renderLogin();
   SB.auth.signUp({email:uEmail(a.id),password:a._pw,options:{data:{name:a.name,phone:a.phone,username:a.id}}}).then(function(r){
     if(r.error){a.busy=false;toast(/registered|exists/i.test(r.error.message)?"이미 있는 아이디예요":(r.error.message||"가입에 실패했어요"));renderLogin();return;}
-    if(r.data.session){USER=r.data.user;SB.from("profiles").upsert({id:USER.id,nickname:a.name}).then(function(){});afterLogin();return;}
+    if(r.data.session){USER=r.data.user;recordConsent(mkt);SB.from("profiles").upsert({id:USER.id,nickname:a.name}).then(function(){});afterLogin();return;}
     /* 세션 미발급(관리자 설정에서 이메일 확인 켜짐) → 바로 로그인 시도 */
     SB.auth.signInWithPassword({email:uEmail(a.id),password:a._pw}).then(function(r2){
       a.busy=false;
       if(r2.error||!r2.data.session){toast("가입은 됐어요 · 로그인해 주세요");a.mode="login";renderLogin();return;}
-      USER=r2.data.user;SB.from("profiles").upsert({id:USER.id,nickname:a.name}).then(function(){});afterLogin();
+      USER=r2.data.user;recordConsent(mkt);SB.from("profiles").upsert({id:USER.id,nickname:a.name}).then(function(){});afterLogin();
     });
   });
+}
+/* D-1: 동의 이력 저장 (테이블 없어도 가입은 안 깨지게 non-blocking) */
+function recordConsent(mkt){
+  if(!USER)return;
+  try{SB.from("user_consents").insert({user_id:USER.id,required_agreed:true,marketing_agreed:!!mkt,policy_version:"v1-draft"})
+    .then(function(r){if(r&&r.error)console.warn("consent insert 실패(무시)",r.error.message);});}catch(_){}
+}
+function consentSheet(){
+  return '<h3>개인정보 수집·이용 동의</h3>'+
+    '<div class="small" style="margin-bottom:10px;color:var(--warn)">※ 아래는 임시(초안) 문구입니다. 정식 배포 전 실제 처리방침으로 교체됩니다.</div>'+
+    '<div class="policy">'+
+      '<b>1. 수집 항목</b><p>아이디, 비밀번호, 이름, 전화번호(선택), 앱 이용·지출 기록 데이터.</p>'+
+      '<b>2. 이용 목적</b><p>회원 식별 및 로그인, 여행 지출 가계부 서비스 제공, 또래 비교 등 통계 분석, 문의 응대.</p>'+
+      '<b>3. 보관 기간</b><p>회원 탈퇴 시까지. 관계 법령상 필요한 경우 해당 기간 보관 후 파기. (구체 기간 추후 명시)</p>'+
+      '<b>4. 제3자 제공</b><p>원칙적으로 제공하지 않으며, 법령에 근거가 있는 경우에 한합니다.</p>'+
+      '<b>5. 동의 거부 권리</b><p>필수 항목 동의를 거부할 수 있으나 서비스 가입·이용이 제한됩니다. 선택 항목(마케팅 수신)은 거부해도 이용에 영향이 없습니다.</p>'+
+      '<b>6. 문의</b><p>[사업자명 · 담당자 · 연락처 — 추후 기재]</p>'+
+    '</div>'+
+    '<button class="btn ghost" id="btnclose" style="margin-top:14px">닫기</button>';
 }
 function doLogin(){
   readAuthFields();var a=S.auth;
@@ -2135,6 +2164,7 @@ function afterLogin(){
 }
 /* 로그인 화면 전용 이벤트 */
 document.addEventListener("click",function(e){
+  if(e.target.id==="cs_view"){openSheet(consentSheet());return;}   /* D-1: 처리방침 전문 */
   if(e.target.id==="dologin"){doLogin();return;}
   if(e.target.id==="dosignup"){doSignup();return;}
   if(e.target.id==="tosignup"){readAuthFields();S.auth.mode="signup";S.auth.busy=false;renderLogin();return;}
