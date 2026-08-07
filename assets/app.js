@@ -552,6 +552,7 @@ function loadUserData(){
       var meta=CITY_BY_ID[(pcs[0]||{}).city_id]||{};
       P[pr.id]={id:pr.id,name:pr.name,purpose:pr.purpose,cur:pr.primary_currency,
         start:pr.start_date,end:pr.end_date,bPre:+pr.budget_pre_krw,bLocal:+pr.budget_local_krw,
+        bAir:+pr.budget_pre_air_krw||0,bStay:+pr.budget_pre_stay_krw||0,bEtc:+pr.budget_pre_etc_krw||0,
         cities:cities,city:cities[0].ko,country:meta.country||"",flag:cities[0].flag||meta.flag||"",
         cash:(pr.cash_topups||[]).map(function(x){return {amt:+x.amount,cur:x.currency,d:x.topped_up_on};}),peers:0};
     });
@@ -585,6 +586,7 @@ function dbDeleteTx(id){return SB.from("transactions").delete().eq("id",id)
 function dbInsertProject(p){
   return SB.from("projects").insert({user_id:USER.id,name:p.name,purpose:p.purpose,
     primary_currency:p.cur,start_date:p.start,end_date:p.end,budget_pre_krw:p.bPre,budget_local_krw:p.bLocal,
+    budget_pre_air_krw:p.bAir||0,budget_pre_stay_krw:p.bStay||0,budget_pre_etc_krw:p.bEtc||0,
     is_long_stay:(LONGPURPOSE.indexOf(p.purpose)>-1||(days(p.start,p.end)+1)>30)})
     .select("id").single().then(function(r){
       if(sbErr(r.error,"프로젝트 저장 실패"))return null;
@@ -595,6 +597,7 @@ function dbInsertProject(p){
 function dbUpdateProject(p){
   return SB.from("projects").update({name:p.name,purpose:p.purpose,primary_currency:p.cur,
     start_date:p.start,end_date:p.end,budget_pre_krw:p.bPre,budget_local_krw:p.bLocal,
+    budget_pre_air_krw:p.bAir||0,budget_pre_stay_krw:p.bStay||0,budget_pre_etc_krw:p.bEtc||0,
     is_long_stay:(LONGPURPOSE.indexOf(p.purpose)>-1||(days(p.start,p.end)+1)>30)}).eq("id",p.id)
     .then(function(r){if(sbErr(r.error,"수정 저장 실패"))return;
       return SB.from("project_cities").delete().eq("project_id",p.id).then(function(){
@@ -1061,7 +1064,7 @@ function amtHint(t){
 }
 
 /* ---------- new project ---------- */
-function freshNF(){return {name:"",dests:[],adding:false,purpose:"",start:"",end:"",bPre:"",bLocal:"",bcur:"KRW",q:"",open:1};}
+function freshNF(){return {name:"",dests:[],adding:false,purpose:"",start:"",end:"",bPre:"",bLocal:"",bAir:"",bStay:"",bEtc:"",noAir:false,noStay:false,noEtc:false,bcur:"KRW",q:"",open:1};}
 function startNewProject(){S.editPid=null;S.nf=freshNF();S.tab="newproj";}
 /* MY에서 기존 프로젝트를 수정 — 생성 폼을 값 채워서 재사용 */
 function openEditProject(k){
@@ -1076,8 +1079,15 @@ function openEditProject(k){
     adding:false,purpose:p.purpose,start:p.start,end:p.end,bcur:bcur,
     bPre:String(Math.round(fromKRW(p.bPre,bcur))),
     bLocal:String(Math.round(fromKRW(p.bLocal,bcur))),
-    q:""
+    q:"",open:1
   };
+  /* B-3: 사전예약 항공/숙박/기타 초기값. 레거시(분리값 없음)면 총액을 기타로 넣어 유실 방지 */
+  var air=+p.bAir||0,stay=+p.bStay||0,etc=+p.bEtc||0;
+  if(air+stay+etc===0 && (+p.bPre||0)>0) etc=+p.bPre;
+  S.nf.bAir=air?String(Math.round(fromKRW(air,bcur))):"";
+  S.nf.bStay=stay?String(Math.round(fromKRW(stay,bcur))):"";
+  S.nf.bEtc=etc?String(Math.round(fromKRW(etc,bcur))):"";
+  S.nf.noAir=false;S.nf.noStay=false;S.nf.noEtc=false;
   S.tab="newproj";render();
 }
 /* B-1: 자동 진행형 아코디언 스텝 폼 — 목적지→목적→이름→시작일→종료일→예산 */
@@ -1087,8 +1097,19 @@ function stepSum(n,f){
   if(n===3)return f.name||"";
   if(n===4)return f.start||"";
   if(n===5)return f.end||"";
-  if(n===6){var bc=CUR[f.bcur],a=[];if(Number(rawNum(f.bLocal)))a.push("현지 "+bc.s+fmtNum(f.bLocal));if(Number(rawNum(f.bPre)))a.push("사전 "+bc.s+fmtNum(f.bPre));return a.join(" · ");}
+  if(n===6){var bc=CUR[f.bcur],a=[],ps=preSumUnit(f);if(Number(rawNum(f.bLocal)))a.push("현지 "+bc.s+fmtNum(f.bLocal));if(ps)a.push("사전 "+bc.s+num(ps,0));return a.join(" · ");}
   return "";
+}
+/* B-3: 사전예약 항공/숙박/기타 합계(선택 통화 단위, 없음은 0) */
+function preSumUnit(f){var g=function(k){return f["no"+k]?0:(Number(rawNum(f["b"+k]))||0);};return g("Air")+g("Stay")+g("Etc");}
+function preRow(key,label,id,f){
+  var no=f["no"+key],bc=CUR[f.bcur];
+  return '<div class="field" style="margin-bottom:9px">'+
+    '<div class="rowbetween" style="margin-bottom:5px"><label style="margin:0">'+label+'</label>'+
+      '<button class="minib'+(no?" on":"")+'" data-none="'+key+'">'+(no?"✓ 없음":"없음")+'</button></div>'+
+    (no?'<div class="prenone">해당 없음 (예약 전이거나 해당 사항 없음)</div>'
+       :'<div class="amtin"><span class="cu">'+bc.s+'</span><input id="n_'+id+'" type="text" inputmode="numeric" placeholder="0" value="'+fmtNum(f["b"+key])+'"></div>')+
+  '</div>';
 }
 function stepBody(n,f){
   if(n===1){
@@ -1117,9 +1138,11 @@ function stepBody(n,f){
     return '<div class="rowbetween" style="margin-bottom:11px"><span class="small">통화</span>'+
       '<span class="seg">'+(function(){var base=["KRW","USD","EUR","JPY"];if(base.indexOf(f.bcur)<0)base.push(f.bcur);
         return base.map(function(cc){return '<button data-bcur="'+cc+'" aria-pressed="'+(cc===f.bcur)+'">'+CUR[cc].s+'</button>';}).join("")+'<button id="bcurmore">＋</button>';})()+'</span></div>'+
-      '<div class="field"><label>✈️ 사전 예약 — 항공 · 숙소 · 미리 산 티켓</label>'+
-        '<div class="amtin"><span class="cu">'+bc.s+'</span><input id="n_pre" type="text" inputmode="numeric" placeholder="0" value="'+fmtNum(f.bPre)+'"></div></div>'+
-      '<div class="field" style="margin-bottom:0"><label>🧾 현지 지출 — 밥값 · 교통 · 쇼핑</label>'+
+      '<div class="small" style="margin:2px 0 9px;color:var(--muted)">✈️ 사전 예약 — 이미 결제한 항목만 (없으면 “없음”)</div>'+
+      preRow("Air","✈️ 항공권","air",f)+
+      preRow("Stay","🏨 숙박","stay",f)+
+      preRow("Etc","🧾 기타 (비자·보험 등)","etc",f)+
+      '<div class="field" style="margin:10px 0 0"><label>🧾 현지 지출 — 밥값 · 교통 · 쇼핑</label>'+
         '<div class="amtin"><span class="cu">'+bc.s+'</span><input id="n_local" type="text" inputmode="numeric" placeholder="0" value="'+fmtNum(f.bLocal)+'"></div></div>'+
       '<div class="tip" id="n_tip"><span class="e">🧮</span><p>'+budgetHint()+'</p></div>'+
       '<div id="n_auto">'+autoBudgetBox()+'</div>';
@@ -1172,9 +1195,9 @@ function autoBudgetBox(){
   var local=d?nm.perDay*d:0;
   return '<div class="autobox"><div class="ab-t"><b>✨ 자동 예산 수립</b><span>표본 '+nm.n+'명</span></div>'+
     '<span class="ab-s">'+esc(d0.ko)+' · '+esc(f.purpose)+esc(d?" · "+d+"일":"")+' 기준 중앙값이에요</span>'+
-    '<div class="ab-r"><span>✈️ 사전 예약</span><b>'+fmt(nm.pre,"KRW")+'</b></div>'+
     '<div class="ab-r"><span>🧾 현지 지출'+(d?" ("+d+"일)":"")+'</span><b>'+(d?fmt(local,"KRW"):"기간을 먼저 정해주세요")+'</b></div>'+
-    '<button class="ab-btn" id="autobudget" '+(d?"":"disabled")+'>이 금액으로 채우기</button></div>';
+    '<div class="ab-r" style="opacity:.7"><span>✈️ 또래 사전예약(참고)</span><b>'+fmt(nm.pre,"KRW")+'</b></div>'+
+    '<button class="ab-btn" id="autobudget" '+(d?"":"disabled")+'>현지 예산 채우기</button></div>';
 }
 function budgetHint(){
   var f=S.nf,bc=CUR[f.bcur];
@@ -1902,11 +1925,12 @@ document.addEventListener("click",function(e){
   if((el=e.target.closest("[data-bcur]"))){saveNF();S.nf.bcur=el.dataset.bcur;render(true);return;}
   if(e.target.id==="bcurmore"){saveNF();S.curq="";S.curTarget="budget";curSheet();return;}
   if((el=e.target.closest("[data-purpose]"))){saveNF();S.nf.purpose=el.dataset.purpose;S.nf.open=3;S.nf._scroll=true;render();return;}
+  if((el=e.target.closest("[data-none]"))){var nk=el.dataset.none;saveNF();S.nf["no"+nk]=!S.nf["no"+nk];if(S.nf["no"+nk])S.nf["b"+nk]="";render(true);return;}  /* B-3: 없음 토글 */
   if(e.target.id==="autobudget"){
     saveNF();var f=S.nf,nm=normOf(f),d=Math.max(1,days(f.start,f.end)+1);
     if(!nm)return;
-    f.bcur="KRW";f.bPre=String(Math.round(nm.pre));f.bLocal=String(Math.round(nm.perDay*d));
-    render(true);toast("또래 평균으로 예산을 채웠어요<br>필요하면 바로 고쳐도 됩니다");return;}
+    f.bcur="KRW";f.bLocal=String(Math.round(nm.perDay*d));   /* B-3: 사전예약은 실제 예약값이라 자동 채움에서 제외, 현지만 채움 */
+    render(true);toast("현지 예산을 또래 평균으로 채웠어요<br>사전예약은 실제 결제한 금액을 넣어주세요");return;}
   if(e.target.id==="ncreate"){
     saveNF();var f=S.nf;
     if(!f.dests.length){toast("어디로 가는지 골라주세요");return;}
@@ -1916,7 +1940,11 @@ document.addEventListener("click",function(e){
     if(!Number(f.bLocal)){toast("현지 지출 예산을 입력해 주세요");return;}
     var d0=f.dests[0];
     var sameCur=f.dests.every(function(x){return x.cur===d0.cur;});
-    var newPre=toKRW(Number(f.bPre)||0,f.bcur),newLocal=toKRW(Number(f.bLocal),f.bcur);
+    /* B-3: 사전예약 = 항공 + 숙박 + 기타 (없음 체크는 0) */
+    var preAir=toKRW(f.noAir?0:(Number(f.bAir)||0),f.bcur);
+    var preStay=toKRW(f.noStay?0:(Number(f.bStay)||0),f.bcur);
+    var preEtc=toKRW(f.noEtc?0:(Number(f.bEtc)||0),f.bcur);
+    var newPre=preAir+preStay+preEtc,newLocal=toKRW(Number(f.bLocal)||0,f.bcur);
 
     if(S.editPid){ /* ── 기존 프로젝트 수정 (write-through) ── */
       var ek=S.editPid,pe=P[ek];
@@ -1926,7 +1954,7 @@ document.addEventListener("click",function(e){
       pe.name=f.name;pe.purpose=f.purpose;pe.start=f.start;pe.end=f.end;
       pe.city=d0.ko;pe.country=d0.country;pe.flag=d0.flag;pe.cur=sameCur?d0.cur:"KRW";
       pe.cities=f.dests.map(function(x){return {ko:x.ko,flag:x.flag,cur:x.cur};});
-      pe.bPre=newPre;pe.bLocal=newLocal;
+      pe.bPre=newPre;pe.bLocal=newLocal;pe.bAir=preAir;pe.bStay=preStay;pe.bEtc=preEtc;
       dbUpdateProject(pe);
       S.editPid=null;S.unit=null;S.tab="my";S.nf=freshNF();
       if(S.pid===ek)S.cal=(f.end<TODAY?f.end:(f.start>TODAY?f.start:TODAY)).slice(0,7);
@@ -1935,11 +1963,11 @@ document.addEventListener("click",function(e){
 
     /* ── 신규 생성: DB insert로 UUID 받아 인메모리 반영 ── */
     var np={name:f.name,purpose:f.purpose,cur:sameCur?d0.cur:"KRW",start:f.start,end:f.end,
-      bPre:newPre,bLocal:newLocal,cities:f.dests.map(function(x){return {ko:x.ko,flag:x.flag,cur:x.cur};})};
+      bPre:newPre,bLocal:newLocal,bAir:preAir,bStay:preStay,bEtc:preEtc,cities:f.dests.map(function(x){return {ko:x.ko,flag:x.flag,cur:x.cur};})};
     dbInsertProject(np).then(function(pid){
       if(!pid)return;
       P[pid]={id:pid,name:np.name,city:d0.ko,country:d0.country,flag:d0.flag,cur:np.cur,
-        cities:np.cities,cash:[],bPre:newPre,bLocal:newLocal,purpose:np.purpose,start:np.start,end:np.end,peers:0};
+        cities:np.cities,cash:[],bPre:newPre,bLocal:newLocal,bAir:preAir,bStay:preStay,bEtc:preEtc,purpose:np.purpose,start:np.start,end:np.end,peers:0};
       BUDGETLOG.push({p:pid,type:"pre",amt:newPre,d:TODAY,memo:"최초 설정"});
       BUDGETLOG.push({p:pid,type:"local",amt:newLocal,d:TODAY,memo:"최초 설정"});
       dbBudgetLog(pid,"pre",newPre,"최초 설정");dbBudgetLog(pid,"local",newLocal,"최초 설정");
@@ -1978,10 +2006,12 @@ function syncEditor(){
   var ti=$("#f_t");if(ti&&ti.value)t.t=ti.value;
 }
 function saveNF(){
-  var q=$("#n_q"),n=$("#n_name"),s=$("#n_start"),e2=$("#n_end"),pre=$("#n_pre"),lo=$("#n_local");
+  var q=$("#n_q"),n=$("#n_name"),s=$("#n_start"),e2=$("#n_end"),lo=$("#n_local");
   if(q)S.nf.q=q.value; if(n)S.nf.name=n.value.trim();
   if(s)S.nf.start=s.value; if(e2)S.nf.end=e2.value;
-  if(pre)S.nf.bPre=rawNum(pre.value); if(lo)S.nf.bLocal=rawNum(lo.value);
+  if(lo)S.nf.bLocal=rawNum(lo.value);
+  var air=$("#n_air"),stay=$("#n_stay"),etc=$("#n_etc");   /* B-3 */
+  if(air)S.nf.bAir=rawNum(air.value); if(stay)S.nf.bStay=rawNum(stay.value); if(etc)S.nf.bEtc=rawNum(etc.value);
 }
 
 document.addEventListener("input",function(e){
@@ -1991,8 +2021,8 @@ document.addEventListener("input",function(e){
     var f2=fmtNum(e.target.value);
     if(e.target.value!==f2){e.target.value=f2;try{e.target.setSelectionRange(f2.length,f2.length);}catch(_){}}
     var dt2=$("#bg_diff"); if(dt2)dt2.textContent=bgDiffText(); return;}
-  if(["n_pre","n_local","n_start","n_end"].indexOf(e.target.id)>-1){
-    if(e.target.id==="n_pre"||e.target.id==="n_local"){
+  if(["n_local","n_air","n_stay","n_etc","n_start","n_end"].indexOf(e.target.id)>-1){
+    if(["n_local","n_air","n_stay","n_etc"].indexOf(e.target.id)>-1){
       var f2=fmtNum(e.target.value);
       if(e.target.value!==f2){e.target.value=f2;
         try{e.target.setSelectionRange(f2.length,f2.length);}catch(_){}}
