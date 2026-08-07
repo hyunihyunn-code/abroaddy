@@ -560,6 +560,7 @@ function loadUserData(){
       TX.push({id:t.id,p:t.project_id,d:t.occurred_on,t:t.occurred_at?String(t.occurred_at).slice(0,5):"",
         m:t.merchant||"",amt:+t.amount,cur:t.currency,cat:CAT_NAME[t.category_id]||"식비",
         pre:t.is_pre,pm:t.payment_method,split:t.split_count?{n:t.split_count}:null,memo:t.memo||"",
+        splitReq:!!t.split_request,
         src:srcFromDb(t.source),keep:t.keep_receipt,rec:t.recurring_rule_id||null,st:t.status,sid:t.settlement_id||null});
     });
     (r[2].data||[]).forEach(function(b){BUDGETLOG.push({p:b.project_id,type:b.envelope,amt:+b.delta_krw,d:b.logged_on,memo:b.memo||""});});
@@ -576,7 +577,8 @@ function loadUserData(){
 function txToRow(t){return {project_id:t.p,occurred_on:t.d,occurred_at:t.t||null,merchant:t.m||null,
   amount:t.amt,currency:t.cur,fx_rate_snapshot:CUR[t.cur].r,krw_amount_snapshot:toKRW(t.amt,t.cur),
   category_id:CAT_ID[t.cat]||null,is_pre:!!t.pre,payment_method:t.pm||"card",source:srcToDb(t.src||"manual"),
-  keep_receipt:!!t.keep,memo:t.memo||null,status:t.st||"confirmed",split_count:t.split?t.split.n:null};}
+  keep_receipt:!!t.keep,memo:t.memo||null,status:t.st||"confirmed",split_count:t.split?t.split.n:null,
+  split_request:!!t.splitReq};}
 function dbInsertTx(t){return SB.from("transactions").insert(txToRow(t)).select("id").single()
   .then(function(r){if(sbErr(r.error,"기록 저장 실패"))return null;return r.data.id;});}
 function dbUpdateTx(t){return SB.from("transactions").update(txToRow(t)).eq("id",t.id)
@@ -928,13 +930,15 @@ function txRow(t,selectable){
     ? '<b><span class="strike">'+fmt(k,t.cur)+'</span>'+fmt(my,t.cur)+'</b><span>≈ '+fmt(my,alt)+'</span>'
     : '<b>'+fmt(my,t.cur)+'</b><span>≈ '+fmt(my,alt)+'</span>';
   var sel=S.sel[t.id]?1:0;
-  return '<div class="tx" data-sel="'+sel+'" '+(selectable?'data-pick="'+t.id+'" role="button" tabindex="0"':'')+'>'+
+  var reqCls=(t.splitReq&&!t.split)?" req":"";   /* C-2 */
+  return '<div class="tx'+reqCls+'" data-sel="'+sel+'" '+(selectable?'data-pick="'+t.id+'" role="button" tabindex="0"':'')+'>'+
     (selectable?'<span class="ck">✓</span>':'')+
     '<span class="ic">'+c.i+'</span>'+
     '<span class="mid"><span class="mname">'+esc(t.m)+'</span>'+
       '<span class="mmeta"><span class="tag">'+esc(t.cat)+'</span>'+
       (t.pre?'<span class="tag pre">사전예약</span>':'')+
       (t.split?'<span class="tag split">'+t.split.n+'명 나눔</span>':'')+
+      (t.splitReq&&!t.split?'<span class="tag req">🔗 정산대상</span>':'')+
       (t.memo?'<span class="tag memo">메모</span>':'')+
       (t.pm==="cash"?'<span class="tag cash">현금</span>':'')+
       (isDep(t.cat)?'<span class="tag dep">회수 예정</span>':'')+
@@ -971,22 +975,32 @@ function shortMoney(k){
 
 /* ---------- ledger ---------- */
 function vLedger(){
-  var list=txs(),groups={};
+  var list=txs();
+  var reqOnly=(S.selMode&&S.settleFilter==="req");   /* C-2: 정산대상만 보기 */
+  if(reqOnly)list=list.filter(function(t){return t.splitReq&&!t.split;});
+  var groups={};
   list.forEach(function(t){(groups[t.d]=groups[t.d]||[]).push(t);});
   var keys=Object.keys(groups).sort().reverse();
   var head='<div class="hd"><h2>가계부</h2>'+
     (S.selMode?'<button class="chip on" id="selcancel">정산 취소</button>'
               :'<button class="chip solid" id="selstart">1/N 정산하기</button>')+'</div>';
+  var emptyMsg=reqOnly
+    ? '<div class="empty">정산 대상으로 체크한 항목이 없어요.<br>‘전체에서 고르기’로 골라보세요.</div>'
+    : '<div class="empty">아직 기록이 없습니다.<br>아래 ＋ 를 눌러 시작해 보세요.</div>';
   var body=keys.length?keys.map(function(d){
       var sum=groups[d].reduce(function(s,t){return s+mineK(t);},0);
       return '<div class="daygroup"><div class="dayhd"><span>'+(+d.slice(5,7))+'월 '+(+d.slice(8,10))+'일</span>'+
         '<span>'+mainOnly(sum)+'</span></div>'+
         groups[d].map(function(t){return txRow(t,S.selMode);}).join("")+'</div>';
     }).join("")
-    :'<div class="empty">아직 기록이 없습니다.<br>아래 ＋ 를 눌러 시작해 보세요.</div>';
-  return topbar()+head+
-    (S.selMode?'<div class="small" style="margin:-4px 0 10px 2px">나눌 항목을 골라주세요</div>':vCal())+
-    body+'<div style="height:74px"></div>';
+    :emptyMsg;
+  var filterUI=S.selMode
+    ? '<div class="segfull">'+
+      '<button class="'+(S.settleFilter==="req"?"on":"")+'" data-settlefilter="req">정산대상만</button>'+
+      '<button class="'+(S.settleFilter!=="req"?"on":"")+'" data-settlefilter="all">전체에서 고르기</button></div>'+
+      '<div class="small" style="margin:0 0 10px 2px">나눌 항목을 골라주세요</div>'
+    : vCal();
+  return topbar()+head+filterUI+body+'<div style="height:74px"></div>';
 }
 
 /* ---------- add: 스캔 or 직접 ---------- */
@@ -1036,6 +1050,10 @@ function vEditor(){
     [["card","💳 카드"],["cash","💵 현금"],["account","🏦 계좌"]].map(function(x){
       return '<button data-pm="'+x[0]+'" aria-pressed="'+((t.pm||"card")===x[0])+'">'+x[1]+'</button>';
     }).join("")+'</div></div></div>'+
+  '<div class="card"><button class="toggle" id="sreqtog" style="width:100%">'+
+    '<span style="text-align:left"><span style="font-size:14px;font-weight:600">🔗 1/N 정산 대상</span>'+
+    '<span class="small" style="display:block;margin-top:2px">체크해두면 정산할 때<br>이 항목이 바로 골라져 있어요</span></span>'+
+    '<span class="sw" aria-pressed="'+(!!t.splitReq)+'"><i></i></span></button></div>'+
   '<div class="card"><button class="toggle" id="pretog" style="width:100%">'+
     '<span style="text-align:left"><span style="font-size:14px;font-weight:600">사전 예약 지출</span>'+
     '<span class="small" style="display:block;margin-top:2px">항공·숙소처럼 미리 결제한 돈은<br>하루 예산에서 빼고 계산해요</span></span>'+
@@ -1765,8 +1783,17 @@ document.addEventListener("click",function(e){
     if(m<1){m=12;y--;}if(m>12){m=1;y++;}
     S.cal=y+"-"+String(m).padStart(2,"0");render();return;}
 
-  if(e.target.id==="selstart"){S.selMode=true;S.sel={};render();return;}
-  if(e.target.id==="selcancel"){S.selMode=false;S.sel={};render();return;}
+  if(e.target.id==="selstart"){   /* C-2: 정산 시작 — 체크해둔 항목이 있으면 '정산대상만'으로 자동 선택 */
+    S.selMode=true;S.sel={};
+    var reqItems=txs().filter(function(t){return t.splitReq&&!t.split;});
+    if(reqItems.length){S.settleFilter="req";reqItems.forEach(function(t){S.sel[t.id]=true;});}
+    else S.settleFilter="all";
+    render();return;}
+  if((el=e.target.closest("[data-settlefilter]"))){   /* C-2: 필터 토글 */
+    S.settleFilter=el.dataset.settlefilter;
+    if(S.settleFilter==="req"){S.sel={};txs().filter(function(t){return t.splitReq&&!t.split;}).forEach(function(t){S.sel[t.id]=true;});}
+    render();return;}
+  if(e.target.id==="selcancel"){S.selMode=false;S.sel={};S.settleFilter=null;render();return;}
   if((el=e.target.closest("[data-pick]"))){
     var id=el.dataset.pick;S.sel[id]=!S.sel[id];el.dataset.sel=S.sel[id]?1:0;syncSel();return;}
   if(e.target.id==="btnsplit"){splitSheet(3);return;}
@@ -1884,6 +1911,9 @@ document.addEventListener("click",function(e){
   if(e.target.closest("#pretog")){
     var t3=curTx();t3.pre=!t3.pre;
     var sw=$("#pretog .sw");sw.setAttribute("aria-pressed",!!t3.pre);return;}
+  if(e.target.closest("#sreqtog")){   /* C-2: 1/N 정산 대상 토글 */
+    var tsq=curTx();tsq.splitReq=!tsq.splitReq;
+    var sw2=$("#sreqtog .sw");sw2.setAttribute("aria-pressed",!!tsq.splitReq);return;}
   if(e.target.id==="dsave"){
     var d=S.detail,t4=curTx();
     t4.amt=Math.max(0,Number($("#f_amt").value)||0);
@@ -1892,7 +1922,7 @@ document.addEventListener("click",function(e){
     if(d.kind==="new"){
       if(!t4.amt){toast("금액을 입력해 주세요");return;}
       var nt={id:null,p:S.pid,d:t4.d,t:t4.t,m:t4.m,amt:t4.amt,cur:t4.cur,cat:t4.cat,split:null,
-        memo:t4.memo,pre:t4.pre,pm:t4.pm||"cash",src:t4.src||"manual",keep:!!t4.keep,st:"confirmed"};
+        memo:t4.memo,pre:t4.pre,pm:t4.pm||"cash",src:t4.src||"manual",keep:!!t4.keep,splitReq:!!t4.splitReq,st:"confirmed"};
       TX.push(nt);
       dbInsertTx(nt).then(function(id){if(id){nt.id=id;render();}else{var ix=TX.indexOf(nt);if(ix>-1)TX.splice(ix,1);render();}});
       S.draft=null;S.detail=null;S.tab="ledger";S.cal=t4.d.slice(0,7);render();toast("기록했어요");return;}
@@ -1999,7 +2029,7 @@ document.addEventListener("click",function(e){
     var cnt=S.scanRows.length;
     S.scanRows.forEach(function(r){
       var t={id:null,p:S.pid,d:r.d,t:r.t,m:r.m,amt:r.amt,cur:r.cur,cat:r.cat,split:null,
-        memo:r.memo||"",pre:!!r.pre,src:r.src||"card",keep:!!r.keep,pm:r.pm||"card",st:"confirmed"};
+        memo:r.memo||"",pre:!!r.pre,src:r.src||"card",keep:!!r.keep,pm:r.pm||"card",splitReq:!!r.splitReq,st:"confirmed"};
       TX.push(t);
       dbInsertTx(t).then(function(id){if(id){t.id=id;render();}else{var ix=TX.indexOf(t);if(ix>-1)TX.splice(ix,1);render();}});
     });
