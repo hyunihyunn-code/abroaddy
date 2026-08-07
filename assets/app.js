@@ -840,6 +840,49 @@ function showOnboarding(force){
   document.body.appendChild(wrap.firstChild);
 }
 function finishOnboarding(){try{localStorage.setItem("abrody_onboarded","1");}catch(_){}var el=$("#onboard");if(el)el.remove();}
+
+/* ===== E-2: 무료 체험(7일) → 종료 후 잠금 + 결제 배너 (결제 목업) =====
+   LOCK_ENABLED=false 이면 라이브 사용자에게 아무 영향 없음. 준비되면 true 로.
+   (지금은 로컬 기준 체험. 실결제·재설치 우회 방지는 서버 검증으로 후속.) */
+var LOCK_ENABLED=false;
+var TRIAL_DAYS=7, TRIAL_PRICE=9900;
+function lockActive(){var f=false;try{f=!!window.__forceLock;}catch(_){}return LOCK_ENABLED||f;}
+function tKey(k){return "abrody_"+k+"_"+((USER&&USER.id)||"anon");}
+function trialInfo(){
+  var paid=false,start=0;
+  try{paid=!!localStorage.getItem(tKey("paid"));start=+localStorage.getItem(tKey("trial"))||0;}catch(_){}
+  if(!start){start=Date.now();try{localStorage.setItem(tKey("trial"),String(start));}catch(_){}}
+  var elapsed=(Date.now()-start)/86400000;
+  return {paid:paid,daysLeft:Math.max(0,Math.ceil(TRIAL_DAYS-elapsed)),expired:elapsed>=TRIAL_DAYS};
+}
+function removeLockUI(){var o=$("#lockover");if(o)o.remove();var b=$("#trialbanner");if(b)b.remove();
+  var app=document.querySelector(".app");if(app)app.classList.remove("locked");}
+function applyTrialUI(){
+  if(!lockActive()||!USER){removeLockUI();return;}
+  var ti=trialInfo();
+  if(ti.paid){removeLockUI();return;}
+  var app=document.querySelector(".app");
+  if(ti.expired){
+    if(app)app.classList.add("locked");
+    var b=$("#trialbanner");if(b)b.remove();
+    if(!$("#lockover")){
+      var d=document.createElement("div");d.id="lockover";d.className="lockover";
+      d.innerHTML='<div class="lockcard"><div class="locke">🔒</div>'+
+        '<h3 class="lockh">무료 체험이 끝났어요</h3>'+
+        '<p class="lockp">'+TRIAL_DAYS+'일 체험이 끝났어요. 계속 쓰려면 결제해 주세요.<br>기록은 그대로 보관돼 있어요.</p>'+
+        '<div class="lockprice">₩'+num(TRIAL_PRICE,0)+'</div>'+
+        '<button class="btn" id="trialpay">₩'+num(TRIAL_PRICE,0)+' 결제하고 계속하기</button>'+
+        '<div class="small" style="margin-top:9px;color:var(--muted)">🔧 예시 결제예요 · 실제로 청구되지 않아요</div></div>';
+      document.body.appendChild(d);
+    }
+  }else{
+    if(app)app.classList.remove("locked");var o=$("#lockover");if(o)o.remove();
+    var bn=$("#trialbanner");
+    if(!bn){bn=document.createElement("div");bn.id="trialbanner";bn.className="trialbanner";document.body.appendChild(bn);}
+    bn.innerHTML='<span>무료 체험 <b>D-'+ti.daysLeft+'</b> · 전체 기능을 쓰고 있어요</span>'+
+      '<button id="trialpay">₩'+num(TRIAL_PRICE,0)+' 결제</button>';
+  }
+}
 function wsSheet(){
   return '<h3>프로젝트</h3><div class="small" style="margin-bottom:10px">기록할 프로젝트를 골라주세요</div>'+
     Object.keys(P).map(function(k){
@@ -1582,6 +1625,7 @@ function render(keepScroll){
   Array.prototype.forEach.call(document.querySelectorAll(".tab"),function(b){
     b.setAttribute("aria-current",!S.detail&&(b.dataset.tab===S.tab||(S.tab==="scan"&&b.dataset.tab==="add")));});
   syncSel();v.scrollTop=keepScroll?prevScroll:0;   /* A-4: 요청 시 스크롤 위치 유지 */
+  applyTrialUI();   /* E-2: 체험/잠금 UI (LOCK_ENABLED=false면 no-op) */
   /* B-1: 스텝 진행 시 열린 단계로 부드럽게 스크롤 + 텍스트칸 포커스 */
   if(S.tab==="newproj"&&S.nf&&S.nf._scroll){
     S.nf._scroll=false;
@@ -1808,6 +1852,7 @@ document.addEventListener("click",function(e){
 
   if(e.target.closest("#wsopen")){openSheet(wsSheet());return;}
   if(e.target.closest("#helpopen")){openSheet(helpSheet());return;}
+  if(e.target.id==="trialpay"){try{localStorage.setItem(tKey("paid"),"1");}catch(_){}removeLockUI();render();toast("결제 완료 · 계속 이용하실 수 있어요");return;}   /* E-2 목업 결제 */
   if(e.target.id==="csvexport"){if(csvPaid())downloadCSV();else openSheet(csvPaySheet());return;}   /* E-1 */
   if(e.target.id==="csvpay"){try{localStorage.setItem("abrody_csv_"+S.pid,"1");}catch(_){}closeSheet();downloadCSV();render();toast("CSV를 내려받았어요");return;}
   if((el=e.target.closest("[data-p]"))){
